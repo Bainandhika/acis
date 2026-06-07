@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Bainandhika/acis/apps/backend/internal/database"
 	"github.com/Bainandhika/acis/apps/backend/internal/middleware"
 	"github.com/Bainandhika/acis/apps/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -46,8 +47,9 @@ func main() {
 	}
 
 	// Initialize Database Connection Pool
-	db := initDB(config)
-	defer db.Close() // Ensure DB connection is closed on exit
+	rawDB := initDB(config)
+	db := database.NewAppDB(rawDB) // Wrap dengan AppDB
+	defer db.Close()               // Ensure DB connection is closed on exit
 
 	// Initialize Gin Router
 	r := gin.Default()
