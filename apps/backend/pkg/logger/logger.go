@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -16,23 +17,26 @@ func Init(logDir string) {
 	// Ensure log directory exists
 	os.MkdirAll(logDir, os.ModePerm)
 
-	// Setup Lumberjack for daily log rotation
+	// Nama file aktif tetap acis.log
 	logFile := filepath.Join(logDir, "acis.log")
+
+	// Setup Lumberjack for daily log rotation
 	lumberjackLogger := &lumberjack.Logger{
 		Filename:   logFile,
-		MaxSize:    10,   // Megabytes
-		MaxBackups: 30,   // Keep 30 days of logs
-		MaxAge:     30,   // Days
-		Compress:   true, // Compress old logs
+		MaxSize:    10, // Megabytes
+		MaxBackups: 30, // Keep 30 backups
+		MaxAge:     30, // Days
+		Compress:   true, // Compress old logs to .gz
 	}
 
-	// Create a multi-writer: write to both file and console (for local dev)
+	// Create a multi-writer: write to both file and console
 	multiWriter := io.MultiWriter(lumberjackLogger, os.Stdout)
 
-	// Configure Zerolog
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	// Ubah format waktu jadi Human-Readable (ISO 8601)
+	zerolog.TimeFieldFormat = time.RFC3339
+	
+	// Setup Caller info
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
-		// Show only the filename and line number, not the full path
 		short := filepath.Base(file)
 		return short + ":" + strconv.Itoa(line)
 	}
@@ -40,7 +44,7 @@ func Init(logDir string) {
 	log.Logger = zerolog.New(multiWriter).
 		With().
 		Timestamp().
-		Caller(). // Adds file name and line number
+		Caller().
 		Logger()
 
 	log.Info().Msg("Logger initialized successfully with daily rotation")

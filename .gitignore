@@ -31,3 +31,7 @@ dist-ssr/
 
 # Docker
 docker-compose.override.yml
+
+# Logs
+logs/
+*.log
