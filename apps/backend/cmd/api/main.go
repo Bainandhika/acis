@@ -11,7 +11,10 @@ import (
 	"time"
 
 	"github.com/Bainandhika/acis/apps/backend/internal/database"
+	"github.com/Bainandhika/acis/apps/backend/internal/handler"
 	"github.com/Bainandhika/acis/apps/backend/internal/middleware"
+	"github.com/Bainandhika/acis/apps/backend/internal/repository"
+	"github.com/Bainandhika/acis/apps/backend/internal/service"
 	"github.com/Bainandhika/acis/apps/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
@@ -51,6 +54,10 @@ func main() {
 	db := database.NewAppDB(rawDB) // Wrap dengan AppDB
 	defer db.Close()               // Ensure DB connection is closed on exit
 
+	walletRepo := repository.NewWalletRepository(db)
+	walletService := service.NewWalletService(walletRepo)
+	walletHandler := handler.NewWalletHandler(walletService)
+
 	// Initialize Gin Router
 	r := gin.Default()
 	r.Use(middleware.TraceID())
@@ -70,6 +77,11 @@ func main() {
 			"message": "ACIS API is running smoothly",
 		})
 	})
+
+	v1 := r.Group("/api/v1")
+	{
+		v1.POST("/wallets", walletHandler.CreateWallet)
+	}
 
 	// Start HTTP Server
 	srv := &http.Server{

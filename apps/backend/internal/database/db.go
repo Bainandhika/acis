@@ -66,3 +66,11 @@ func (db *AppDB) QueryxContext(ctx context.Context, query string, args ...interf
 	logQuery(ctx, query, args...)
 	return db.DB.QueryxContext(ctx, query, args...)
 }
+
+// QueryRowContext overrides sqlx.DB.QueryRowContext to log the query
+// Note: sqlx.Row executes lazily on Scan, so we can't easily measure duration here without wrapping the Row itself.
+// For MVP, we just log the query execution attempt.
+func (db *AppDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	logQuery(ctx, query, args, 0, nil) 
+	return db.DB.QueryRowContext(ctx, query, args...)
+}
