@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Bainandhika/acis/apps/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
@@ -27,6 +28,8 @@ type Config struct {
 }
 
 func main() {
+	logger.Init("./logs")
+
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not found, using system environment variables")
