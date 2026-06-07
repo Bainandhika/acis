@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Bainandhika/acis/apps/backend/internal/middleware"
 	"github.com/Bainandhika/acis/apps/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
@@ -50,6 +51,7 @@ func main() {
 
 	// Initialize Gin Router
 	r := gin.Default()
+	r.Use(middleware.TraceID())
 
 	// Health Check Endpoint
 	r.GET("/health", func(c *gin.Context) {
