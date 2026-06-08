@@ -56,14 +56,17 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 func (s *Server) setupRoutes() {
 	// --- Dependency Injection ---
 	userRepo := repository.NewUserRepository(s.db)
-	walletRepo := repository.NewWalletRepository(s.db)
+	walletRepo := repository.NewWalletRepository()
+	proposalRepo := repository.NewProposalRepository()
 	authRepo := repository.NewAuthRepository(s.db)
 
 	authService := service.NewAuthService(authRepo, userRepo, s.cfg.JWTSecret)
-	walletService := service.NewWalletService(walletRepo)
+	walletService := service.NewWalletService(walletRepo, s.db)
+	proposalService := service.NewProposalService(proposalRepo, walletRepo, s.db)
 
 	authHandler := handler.NewAuthHandler(authService)
 	walletHandler := handler.NewWalletHandler(walletService)
+	proposalHandler := handler.NewProposalHandler(proposalService)
 
 	// --- Health Check ---
 	s.router.GET("/health", func(c *gin.Context) {
@@ -96,6 +99,7 @@ func (s *Server) setupRoutes() {
 	{
 		protected.POST("/wallets", walletHandler.CreateWallet)
 		protected.GET("/wallets", walletHandler.GetWallets)
+		protected.POST("/proposals", proposalHandler.CreateProposal) // <-- BARU
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Bainandhika/acis/apps/backend/internal/database"
 	"github.com/Bainandhika/acis/apps/backend/internal/domain"
 	"github.com/Bainandhika/acis/apps/backend/internal/dto"
 	"github.com/Bainandhika/acis/apps/backend/internal/repository"
@@ -11,7 +12,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// WalletService defines business logic contracts
 type WalletService interface {
 	CreateWallet(ctx context.Context, req dto.CreateWalletRequest, createdBy string) (*dto.WalletResponse, error)
 	GetWallets(ctx context.Context, familyID string) ([]dto.WalletResponse, error)
@@ -19,24 +19,20 @@ type WalletService interface {
 
 type walletService struct {
 	walletRepo repository.WalletRepository
+	db         *database.AppDB // Added to pass as DBExecutor to repository
 }
 
-// NewWalletService creates a new WalletService (Manual DI)
-func NewWalletService(walletRepo repository.WalletRepository) WalletService {
-	return &walletService{walletRepo: walletRepo}
+func NewWalletService(walletRepo repository.WalletRepository, db *database.AppDB) WalletService {
+	return &walletService{walletRepo: walletRepo, db: db}
 }
 
-// CreateWallet handles the business logic of creating a wallet
 func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRequest, createdBy string) (*dto.WalletResponse, error) {
-	// 1. Business Validation
 	if req.Name == "" {
 		return nil, errors.New("wallet name cannot be empty")
 	}
 
-	// 2. Generate UUID for the new wallet
 	walletID := uuid.New().String()
 
-	// 3. Map DTO to Domain Model
 	wallet := &domain.Wallet{
 		ID:             walletID,
 		FamilyID:       req.FamilyID,
@@ -48,13 +44,12 @@ func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRe
 		CreatedBy:      &createdBy,
 	}
 
-	// 4. Call Repository
-	if err := s.walletRepo.Create(ctx, wallet); err != nil {
+	// Pass s.db as the executor since this is a non-transactional operation
+	if err := s.walletRepo.Create(ctx, s.db, wallet); err != nil {
 		log.Error().Err(err).Str("trace_id", ctx.Value("X-Transaction-ID").(string)).Msg("Failed to create wallet in DB")
 		return nil, errors.New("failed to create wallet")
 	}
 
-	// 5. Map Domain back to Response DTO
 	response := &dto.WalletResponse{
 		ID:             wallet.ID,
 		Name:           wallet.Name,
@@ -68,9 +63,9 @@ func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRe
 	return response, nil
 }
 
-// GetWallets handles the business logic of fetching wallets
 func (s *walletService) GetWallets(ctx context.Context, familyID string) ([]dto.WalletResponse, error) {
-	wallets, err := s.walletRepo.GetByFamilyID(ctx, familyID)
+	// Pass s.db as the executor
+	wallets, err := s.walletRepo.GetByFamilyID(ctx, s.db, familyID)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to fetch wallets")
 		return nil, errors.New("failed to fetch wallets")
