@@ -16,6 +16,7 @@ import (
 	"github.com/Bainandhika/acis/apps/backend/internal/repository"
 	"github.com/Bainandhika/acis/apps/backend/internal/service"
 	"github.com/Bainandhika/acis/apps/backend/pkg/logger"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
@@ -64,6 +65,15 @@ func main() {
 	walletHandler := handler.NewWalletHandler(walletService)
 
 	r := gin.Default()
+
+	corsConfig := cors.Config{
+        AllowOrigins:     []string{"http://localhost:5173"}, // Spesifik ke frontend Vue
+        AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+        AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+        ExposeHeaders:    []string{"Content-Length", "X-Transaction-ID"},
+        AllowCredentials: true,
+    }
+    r.Use(cors.New(corsConfig))
 	r.Use(middleware.TraceID())
 
 	r.GET("/health", func(c *gin.Context) {
