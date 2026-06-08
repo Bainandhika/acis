@@ -35,20 +35,16 @@ func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRe
 	// 2. Generate UUID for the new wallet
 	walletID := uuid.New().String()
 
-	// TODO: Replace with actual IDs from Auth context later
-	familyID := "00000000-0000-0000-0000-000000000002"
-	createdByUUID := "00000000-0000-0000-0000-000000000001"
-
 	// 3. Map DTO to Domain Model
 	wallet := &domain.Wallet{
 		ID:             walletID,
-		FamilyID:       familyID, // <-- FIX: Isi dengan valid UUID
+		FamilyID:       req.FamilyID,
 		Name:           req.Name,
 		Description:    &req.Description,
 		InitialBalance: req.InitialBalance,
 		CurrentBalance: req.InitialBalance,
 		MinimumLimit:   req.MinimumLimit,
-		CreatedBy:      &createdByUUID, // <-- FIX: Isi dengan valid UUID
+		CreatedBy:      &createdBy,
 	}
 
 	// 4. Call Repository

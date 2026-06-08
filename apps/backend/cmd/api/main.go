@@ -29,6 +29,7 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+	JWTSecret  string
 }
 
 func main() {
@@ -45,14 +46,21 @@ func main() {
 		DBUser:     getEnv("DB_USER", "acis_user"),
 		DBPassword: getEnv("DB_PASSWORD", "acis_secret_password"),
 		DBName:     getEnv("DB_NAME", "acis_db"),
+		JWTSecret:  getEnv("JWT_SECRET", "acis_jwt_secret"),
 	}
 
 	rawDB := initDB(config)
 	db := database.NewAppDB(rawDB)
 	defer db.Close()
 
+	userRepo := repository.NewUserRepository(db)
 	walletRepo := repository.NewWalletRepository(db)
+	authRepo := repository.NewAuthRepository(db)
+
+	authService := service.NewAuthService(authRepo, userRepo, config.JWTSecret)
 	walletService := service.NewWalletService(walletRepo)
+
+	authHandler := handler.NewAuthHandler(authService)
 	walletHandler := handler.NewWalletHandler(walletService)
 
 	r := gin.Default()
@@ -72,9 +80,21 @@ func main() {
 		})
 	})
 
+	// --- PUBLIC ROUTES ---
 	v1 := r.Group("/api/v1")
 	{
-		v1.POST("/wallets", walletHandler.CreateWallet)
+		v1.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+		v1.POST("/auth/request-otp", authHandler.RequestOTP)
+		v1.POST("/auth/verify-otp", authHandler.VerifyOTP)
+	}
+
+	// --- PROTECTED ROUTES (Require Auth) ---
+	protected := v1.Group("")
+	protected.Use(middleware.AuthMiddleware(config.JWTSecret))
+	{
+		protected.POST("/wallets", walletHandler.CreateWallet)
 	}
 
 	srv := &http.Server{

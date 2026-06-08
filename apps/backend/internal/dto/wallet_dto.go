@@ -2,6 +2,7 @@ package dto
 
 // CreateWalletRequest represents the JSON payload from frontend
 type CreateWalletRequest struct {
+	FamilyID       string  `json:"family_id" binding:"required,uuid"` // Tambahin ini
 	Name           string  `json:"name" binding:"required"`
 	Description    string  `json:"description"`
 	InitialBalance float64 `json:"initial_balance" binding:"required,min=0"`
