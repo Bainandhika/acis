@@ -1,37 +1,75 @@
-﻿# OS
-Thumbs.db
-.DS_Store
-desktop.ini
-
-# Go
-*.exe
-*.exe~
-*.dll
+```
+# Go build artifacts
+*.o
+*.a
 *.so
 *.dylib
-*.test
-*.out
+*.dll
+*.exe
+
+# Go cache and tools
+go.mod
+go.sum
 vendor/
-bin/
+*.mod
+*.sum
 
-# Vue / Node.js
+# Dependencies
 node_modules/
-dist/
-dist-ssr/
-*.local
-.env
-.env.local
-.env.production
+**/node_modules/
 
-# IDE
+# Build directories
+build/
+dist/
+target/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+venv/
+ENV/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.tmp
 
-# Docker
-docker-compose.override.yml
+# Environment variables
+.env
+.env.local
+*.env.*
 
-# Logs
-logs/
-*.log
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# MyPy cache
+.mypy_cache/
+.pytest_cache/
+```
