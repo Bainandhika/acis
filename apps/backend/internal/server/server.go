@@ -99,7 +99,8 @@ func (s *Server) setupRoutes() {
 	{
 		protected.POST("/wallets", walletHandler.CreateWallet)
 		protected.GET("/wallets", walletHandler.GetWallets)
-		protected.POST("/proposals", proposalHandler.CreateProposal) // <-- BARU
+		protected.POST("/proposals", proposalHandler.CreateProposal)
+		protected.POST("/:id/reject", proposalHandler.RejectProposal)
 	}
 }
 

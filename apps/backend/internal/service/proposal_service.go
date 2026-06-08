@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Bainandhika/acis/apps/backend/internal/database"
 	"github.com/Bainandhika/acis/apps/backend/internal/domain"
@@ -14,6 +15,7 @@ import (
 
 type ProposalService interface {
 	CreateProposal(ctx context.Context, req dto.CreateProposalRequest, proposedBy string) (*dto.ProposalResponse, error)
+	RejectProposal(ctx context.Context, proposalID string, reviewerID string) error
 }
 
 type proposalService struct {
@@ -100,4 +102,19 @@ func (s *proposalService) CreateProposal(ctx context.Context, req dto.CreateProp
 
 	log.Info().Str("proposal_id", proposalID).Msg("Proposal created successfully")
 	return response, nil
+}
+
+// RejectProposal handles the business logic for rejecting a proposal.
+func (s *proposalService) RejectProposal(ctx context.Context, proposalID string, reviewerID string) error {
+	// Since this is a single UPDATE query, it is inherently atomic in PostgreSQL.
+	// We don't need to explicitly BEGIN/COMMIT a transaction like in ApproveProposal.
+	// We just pass the main DB connection (which implements DBExecutor).
+	err := s.proposalRepo.RejectProposal(ctx, s.db, proposalID, reviewerID)
+	if err != nil {
+		return fmt.Errorf("ProposalService.RejectProposal: %w", err)
+	}
+
+	// TODO: Trigger notification (e.g., email/Telegram bot) to the proposer later.
+
+	return nil
 }

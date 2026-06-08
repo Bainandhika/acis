@@ -41,3 +41,31 @@ func (h *ProposalHandler) CreateProposal(c *gin.Context) {
 		"data":    proposal,
 	})
 }
+
+func (h *ProposalHandler) RejectProposal(c *gin.Context) {
+	proposalID := c.Param("id")
+
+	// Extract user ID from context.
+	// NOTE: Adjust "user_id" to whatever key your JWT/Auth middleware uses (e.g., "userID", "sub").
+	reviewerID := c.GetString("user_id")
+
+	if reviewerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: user ID not found in context"})
+		return
+	}
+
+	err := h.proposalService.RejectProposal(c.Request.Context(), proposalID, reviewerID)
+	if err != nil {
+		// Basic error mapping.
+		// In production, you might want to check if err contains "not found" to return 404 instead of 400.
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Proposal rejected successfully",
+		"data": map[string]interface{}{
+			"id": proposalID,
+		},
+	})
+}
