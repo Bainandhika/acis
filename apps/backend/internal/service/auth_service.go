@@ -10,6 +10,7 @@ import (
 	"github.com/Bainandhika/acis/apps/backend/internal/dto"
 	"github.com/Bainandhika/acis/apps/backend/internal/repository"
 	"github.com/Bainandhika/acis/apps/backend/pkg/auth"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -110,15 +111,27 @@ func (s *authService) VerifyOTP(ctx context.Context, req dto.VerifyOTPRequest) (
 	if user == nil {
 		// Auto-register new user for MVP
 		log.Info().Str("email", req.Email).Msg("New user detected, auto-registering...")
+		
+		// Generate UUID for new user
+		userID, err := uuid.NewUUID()
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to generate UUID for new user")
+			return nil, errors.New("failed to create user")
+		}
+		
 		user = &domain.User{
+			ID:    userID.String(),
 			Email: req.Email,
 			Name:  req.Email, // Default name to email, user can update later
 		}
-		// Note: In a real app, you'd use a proper UUID generator here
-		// For MVP, let's assume the DB handles ID generation or we pass a dummy.
-		// Actually, our User repo expects ID. Let's fix this in the next step or use a simple UUID.
-		// For now, let's just return an error if user doesn't exist to keep it simple for tonight.
-		return nil, errors.New("user not found. please contact admin to register.")
+		
+		// Create user in database
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			log.Error().Err(err).Msg("Failed to create new user in DB")
+			return nil, errors.New("failed to register user")
+		}
+		
+		log.Info().Str("user_id", user.ID).Msg("New user registered successfully")
 	}
 
 	// 5. Determine Role (For MVP, check if user is admin of any family, else member)
