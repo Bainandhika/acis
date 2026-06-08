@@ -3,15 +3,39 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/rs/zerolog/log"
+	_ "github.com/lib/pq"
+	zerolog "github.com/rs/zerolog/log"
 )
 
 // AppDB wraps sqlx.DB to add custom logging with trace ID
 type AppDB struct {
 	*sqlx.DB
+}
+
+func NewConnection(dsn string) (*AppDB, error) {
+	db, err := sqlx.Connect("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Best practice: Set connection pool limits
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	log.Println("✅ Database connected and pool initialized")
+
+	// Langsung return sebagai AppDB wrapper lo
+	return &AppDB{DB: db}, nil
 }
 
 // NewAppDB creates a new AppDB instance
@@ -34,7 +58,7 @@ func logQuery(ctx context.Context, query string, args ...interface{}) {
 	// We use a closure to capture execution time after the query runs
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		log.Info().
+		zerolog.Info().
 			Str("trace_id", traceID).
 			Str("query", query).
 			Interface("args", args).
@@ -71,6 +95,6 @@ func (db *AppDB) QueryxContext(ctx context.Context, query string, args ...interf
 // Note: sqlx.Row executes lazily on Scan, so we can't easily measure duration here without wrapping the Row itself.
 // For MVP, we just log the query execution attempt.
 func (db *AppDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	logQuery(ctx, query, args, 0, nil) 
+	logQuery(ctx, query, args, 0, nil)
 	return db.DB.QueryRowContext(ctx, query, args...)
 }
