@@ -14,6 +14,7 @@ import (
 // WalletService defines business logic contracts
 type WalletService interface {
 	CreateWallet(ctx context.Context, req dto.CreateWalletRequest, createdBy string) (*dto.WalletResponse, error)
+	GetWallets(ctx context.Context, familyID string) ([]dto.WalletResponse, error)
 }
 
 type walletService struct {
@@ -65,4 +66,31 @@ func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRe
 
 	log.Info().Str("wallet_id", walletID).Msg("Wallet created successfully")
 	return response, nil
+}
+
+// GetWallets handles the business logic of fetching wallets
+func (s *walletService) GetWallets(ctx context.Context, familyID string) ([]dto.WalletResponse, error) {
+	wallets, err := s.walletRepo.GetByFamilyID(ctx, familyID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to fetch wallets")
+		return nil, errors.New("failed to fetch wallets")
+	}
+
+	var responses []dto.WalletResponse
+	for _, w := range wallets {
+		desc := ""
+		if w.Description != nil {
+			desc = *w.Description
+		}
+
+		responses = append(responses, dto.WalletResponse{
+			ID:             w.ID,
+			Name:           w.Name,
+			Description:    desc,
+			InitialBalance: w.InitialBalance,
+			CurrentBalance: w.CurrentBalance,
+			MinimumLimit:   w.MinimumLimit,
+		})
+	}
+	return responses, nil
 }

@@ -105,6 +105,7 @@ func main() {
 	protected.Use(middleware.AuthMiddleware(config.JWTSecret))
 	{
 		protected.POST("/wallets", walletHandler.CreateWallet)
+		protected.GET("/wallets", walletHandler.GetWallets)
 	}
 
 	srv := &http.Server{

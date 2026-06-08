@@ -45,3 +45,20 @@ func (h *WalletHandler) CreateWallet(c *gin.Context) {
 		"data":    wallet,
 	})
 }
+
+// GetWallets handles GET /api/v1/wallets
+func (h *WalletHandler) GetWallets(c *gin.Context) {
+	familyID := c.Query("family_id")
+	if familyID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "family_id is required"})
+		return
+	}
+
+	wallets, err := h.walletService.GetWallets(c.Request.Context(), familyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": wallets})
+}
