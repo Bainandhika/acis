@@ -59,14 +59,24 @@ type Transaction struct {
 
 // Proposal represents the 'proposals' table
 type Proposal struct {
-	ID         string     `db:"id" json:"id"`
-	WalletID   string     `db:"wallet_id" json:"wallet_id"`
-	Amount     float64    `db:"amount" json:"amount"`
-	Description string    `db:"description" json:"description"`
-	Status     string     `db:"status" json:"status"` // 'pending', 'approved', 'rejected'
-	ProposedBy *string    `db:"proposed_by" json:"proposed_by"`
-	ReviewedBy *string    `db:"reviewed_by" json:"reviewed_by"`
-	ReviewedAt *time.Time `db:"reviewed_at" json:"reviewed_at"`
-	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`
+	ID          string     `db:"id" json:"id"`
+	WalletID    string     `db:"wallet_id" json:"wallet_id"`
+	Amount      float64    `db:"amount" json:"amount"`
+	Description string     `db:"description" json:"description"`
+	Status      string     `db:"status" json:"status"` // 'pending', 'approved', 'rejected'
+	ProposedBy  *string    `db:"proposed_by" json:"proposed_by"`
+	ReviewedBy  *string    `db:"reviewed_by" json:"reviewed_by"`
+	ReviewedAt  *time.Time `db:"reviewed_at" json:"reviewed_at"`
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time  `db:"updated_at" json:"updated_at"`
+}
+
+// OTPCode represents the 'otp_codes' table
+type OTPCode struct {
+	ID        string    `db:"id" json:"id"`
+	Email     string    `db:"email" json:"email"`
+	CodeHash  string    `db:"code_hash" json:"-"` // Jangan expose hash ke JSON
+	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
+	IsUsed    bool      `db:"is_used" json:"is_used"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
