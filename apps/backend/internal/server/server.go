@@ -56,14 +56,17 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 func (s *Server) setupRoutes() {
 	// --- Dependency Injection ---
 	userRepo := repository.NewUserRepository(s.db)
+	familyRepo := repository.NewFamilyRepository(s.db)
 	walletRepo := repository.NewWalletRepository()
 	proposalRepo := repository.NewProposalRepository()
 	authRepo := repository.NewAuthRepository(s.db)
 
+	familyService := service.NewFamilyService(familyRepo, userRepo, s.db)
 	authService := service.NewAuthService(authRepo, userRepo, s.cfg.JWTSecret)
 	walletService := service.NewWalletService(walletRepo, s.db)
 	proposalService := service.NewProposalService(proposalRepo, walletRepo, s.db)
 
+	familyHandler := handler.NewFamilyHandler(familyService)
 	authHandler := handler.NewAuthHandler(authService)
 	walletHandler := handler.NewWalletHandler(walletService)
 	proposalHandler := handler.NewProposalHandler(proposalService)
@@ -101,6 +104,11 @@ func (s *Server) setupRoutes() {
 		protected.GET("/wallets", walletHandler.GetWallets)
 		protected.POST("/proposals", proposalHandler.CreateProposal)
 		protected.POST("/:id/reject", proposalHandler.RejectProposal)
+
+		// Family routes
+        protected.POST("/families", familyHandler.CreateFamily)
+        protected.POST("/families/join", familyHandler.JoinFamily)
+        protected.GET("/families/me", familyHandler.GetMyFamily)
 	}
 }
 
