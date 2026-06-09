@@ -13,5 +13,20 @@ services:
     volumes:
       - acis_data:/var/lib/postgresql/data
 
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: acis_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8080:80"
+    depends_on:
+      - acis_db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
 volumes:
   acis_data:
+  pgadmin_data:
