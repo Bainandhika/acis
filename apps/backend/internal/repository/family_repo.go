@@ -36,7 +36,7 @@ func (r *familyRepo) FindByInviteCode(ctx context.Context, exec DBExecutor, code
 	          FROM families WHERE invite_code = $1`
 
 	family := &domain.Family{}
-	err := exec.SelectContext(ctx, family, query, code)
+	err := exec.GetContext(ctx, family, query, code)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (r *familyRepo) GetMemberByUserID(ctx context.Context, exec DBExecutor, use
 	          FROM family_members WHERE user_id = $1 LIMIT 1`
 
 	member := &domain.FamilyMember{}
-	err := exec.SelectContext(ctx, member, query, userID)
+	err := exec.GetContext(ctx, member, query, userID)
 	if err != nil {
 		return nil, err
 	}
