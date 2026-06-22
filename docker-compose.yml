@@ -3,7 +3,6 @@ services:
   acis_db:
     image: postgres:15-alpine
     container_name: acis_postgres
-    restart: always
     environment:
       POSTGRES_USER: acis_user
       POSTGRES_PASSWORD: acis_secret_password
@@ -16,7 +15,6 @@ services:
   pgadmin:
     image: dpage/pgadmin4
     container_name: acis_pgadmin
-    restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@local.com
       PGADMIN_DEFAULT_PASSWORD: admin123
