@@ -42,6 +42,29 @@ func (h *ProposalHandler) CreateProposal(c *gin.Context) {
 	})
 }
 
+func (h *ProposalHandler) ApproveProposal(c *gin.Context) {
+	proposalID := c.Param("id")
+	reviewerID := c.GetString("user_id")
+
+	if reviewerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: user ID not found in context"})
+		return
+	}
+
+	err := h.proposalService.ApproveProposal(c.Request.Context(), proposalID, reviewerID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Proposal approved successfully",
+		"data": map[string]interface{}{
+			"id": proposalID,
+		},
+	})
+}
+
 func (h *ProposalHandler) RejectProposal(c *gin.Context) {
 	proposalID := c.Param("id")
 
