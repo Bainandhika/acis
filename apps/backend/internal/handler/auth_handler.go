@@ -52,5 +52,9 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 		return
 	}
 
+	// Set HttpOnly, Secure, SameSite=Strict cookie for web SPA security (PRD 3.1)
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("auth_token", resp.Token, 86400, "/", "", false, true)
+
 	c.JSON(http.StatusOK, resp)
 }
