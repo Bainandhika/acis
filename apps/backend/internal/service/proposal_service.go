@@ -15,6 +15,7 @@ import (
 
 type ProposalService interface {
 	CreateProposal(ctx context.Context, req dto.CreateProposalRequest, proposedBy string) (*dto.ProposalResponse, error)
+	ApproveProposal(ctx context.Context, proposalID string, reviewerID string) error
 	RejectProposal(ctx context.Context, proposalID string, reviewerID string) error
 }
 
@@ -45,8 +46,6 @@ func (s *proposalService) CreateProposal(ctx context.Context, req dto.CreateProp
 	}
 
 	// 2. Safety Net: Defer Rollback
-	// If the function returns an error, or if there's a panic, the transaction will be rolled back.
-	// If tx.Commit() is called successfully, it clears the error state, so Rollback() becomes a no-op.
 	defer func() {
 		if err != nil {
 			tx.Rollback()
@@ -56,7 +55,7 @@ func (s *proposalService) CreateProposal(ctx context.Context, req dto.CreateProp
 	// 3. Business Logic: Check Wallet Balance (using tx as executor)
 	wallet, err := s.walletRepo.GetByID(ctx, tx, req.WalletID)
 	if err != nil {
-		log.Error().Err(err).Str("trace_id", ctx.Value("X-Transaction-ID").(string)).Msg("Failed to get wallet")
+		log.Error().Err(err).Msg("Failed to get wallet")
 		return nil, errors.New("wallet not found")
 	}
 
@@ -78,7 +77,7 @@ func (s *proposalService) CreateProposal(ctx context.Context, req dto.CreateProp
 
 	err = s.proposalRepo.Create(ctx, tx, proposal)
 	if err != nil {
-		log.Error().Err(err).Str("trace_id", ctx.Value("X-Transaction-ID").(string)).Msg("Failed to create proposal")
+		log.Error().Err(err).Msg("Failed to create proposal")
 		return nil, errors.New("failed to create proposal")
 	}
 
@@ -104,17 +103,74 @@ func (s *proposalService) CreateProposal(ctx context.Context, req dto.CreateProp
 	return response, nil
 }
 
+// ApproveProposal handles atomic proposal approval, wallet balance deduction, and transaction recording.
+func (s *proposalService) ApproveProposal(ctx context.Context, proposalID string, reviewerID string) error {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return fmt.Errorf("ProposalService.ApproveProposal: failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 1. Lock proposal for update
+	proposal, err := s.proposalRepo.GetByIDForUpdate(ctx, tx, proposalID)
+	if err != nil {
+		return fmt.Errorf("ProposalService.ApproveProposal: proposal not found: %w", err)
+	}
+
+	if proposal.Status != "pending" {
+		err = errors.New("proposal is not in pending status")
+		return err
+	}
+
+	// 2. Check wallet balance
+	wallet, err := s.walletRepo.GetByID(ctx, tx, proposal.WalletID)
+	if err != nil {
+		return fmt.Errorf("ProposalService.ApproveProposal: wallet not found: %w", err)
+	}
+
+	if wallet.CurrentBalance < proposal.Amount {
+		err = errors.New("insufficient wallet balance")
+		return err
+	}
+
+	// 3. Deduct balance from wallet
+	if err = s.walletRepo.UpdateBalance(ctx, tx, proposal.WalletID, -proposal.Amount); err != nil {
+		return fmt.Errorf("ProposalService.ApproveProposal: failed to deduct wallet balance: %w", err)
+	}
+
+	// 4. Mark proposal approved
+	if err = s.proposalRepo.ApproveProposal(ctx, tx, proposalID, reviewerID); err != nil {
+		return fmt.Errorf("ProposalService.ApproveProposal: failed to approve proposal: %w", err)
+	}
+
+	// 5. Insert transaction log record
+	txID := uuid.New().String()
+	txQuery := `INSERT INTO transactions (id, wallet_id, amount, type, description, created_by, created_at)
+	            VALUES ($1, $2, $3, 'expense', $4, $5, NOW())`
+	if _, err = tx.ExecContext(ctx, txQuery, txID, proposal.WalletID, proposal.Amount, proposal.Description, reviewerID); err != nil {
+		return fmt.Errorf("ProposalService.ApproveProposal: failed to record transaction: %w", err)
+	}
+
+	// 6. Commit transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("ProposalService.ApproveProposal: failed to commit transaction: %w", err)
+	}
+
+	log.Info().Str("proposal_id", proposalID).Str("reviewer_id", reviewerID).Msg("Proposal approved successfully")
+	return nil
+}
+
 // RejectProposal handles the business logic for rejecting a proposal.
 func (s *proposalService) RejectProposal(ctx context.Context, proposalID string, reviewerID string) error {
-	// Since this is a single UPDATE query, it is inherently atomic in PostgreSQL.
-	// We don't need to explicitly BEGIN/COMMIT a transaction like in ApproveProposal.
-	// We just pass the main DB connection (which implements DBExecutor).
 	err := s.proposalRepo.RejectProposal(ctx, s.db, proposalID, reviewerID)
 	if err != nil {
 		return fmt.Errorf("ProposalService.RejectProposal: %w", err)
 	}
-
-	// TODO: Trigger notification (e.g., email/Telegram bot) to the proposer later.
 
 	return nil
 }
