@@ -7,10 +7,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// JWTSecret should be loaded from environment variables in production
-// For MVP, we'll pass it during initialization
-var JWTSecret []byte
-
 // CustomClaims extends jwt.RegisteredClaims with our custom fields
 type CustomClaims struct {
 	UserID string `json:"user_id"`
@@ -20,8 +16,6 @@ type CustomClaims struct {
 
 // GenerateToken creates a new JWT token for the user
 func GenerateToken(userID, role, secret string, expiryHours int) (string, error) {
-	JWTSecret = []byte(secret)
-
 	expirationTime := time.Now().Add(time.Duration(expiryHours) * time.Hour)
 	claims := &CustomClaims{
 		UserID: userID,
@@ -34,17 +28,17 @@ func GenerateToken(userID, role, secret string, expiryHours int) (string, error)
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(JWTSecret)
+	return token.SignedString([]byte(secret))
 }
 
-// ValidateToken parses and validates the JWT token string
-func ValidateToken(tokenString string) (*CustomClaims, error) {
+// ValidateToken parses and validates the JWT token string using the provided secret
+func ValidateToken(tokenString, secret string) (*CustomClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
-		return JWTSecret, nil
+		return []byte(secret), nil
 	})
 
 	if err != nil {
