@@ -1,0 +1,20 @@
+server:
+  port: "${PORT:8080}"
+  mode: "${GIN_MODE:debug}"
+
+database:
+  host: "${DB_HOST:localhost}"
+  port: "${DB_PORT:5432}"
+  user: "${DB_USER:acis_user}"
+  password: "${DB_PASSWORD}"
+  name: "${DB_NAME:acis_db}"
+  ssl_mode: "${DB_SSLMODE:disable}"
+  time_zone: "${DB_TIMEZONE:Asia/Jakarta}"
+
+jwt:
+  secret: "${JWT_SECRET}"
+  expiry: "${JWT_EXPIRY:24h}"
+
+log:
+  dir: "${LOG_DIR:./logs}"
+  level: "${LOG_LEVEL:info}"
