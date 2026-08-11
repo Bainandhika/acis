@@ -41,6 +41,14 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 	r.Use(cors.New(corsConfig))
 	r.Use(middleware.TraceID())
 
+	// Phase 2: Performance & Protection Middlewares
+	r.Use(middleware.RequestSizeLimiter(1 << 20))        // 1MB max body payload limit
+	r.Use(middleware.TimeoutMiddleware(10 * time.Second)) // 10s request context deadline
+
+	// Token Bucket Rate Limiter (2 req/sec, burst of 5)
+	ipLimiter := middleware.NewIPRateLimiter(2, 5)
+	r.Use(middleware.RateLimitMiddleware(ipLimiter))
+
 	s := &Server{
 		cfg:    cfg,
 		db:     db,
