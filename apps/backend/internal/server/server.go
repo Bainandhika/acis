@@ -63,7 +63,7 @@ func (s *Server) setupRoutes() {
 
 	familyService := service.NewFamilyService(familyRepo, userRepo, s.db)
 	authService := service.NewAuthService(authRepo, userRepo, s.cfg.JWTSecret)
-	walletService := service.NewWalletService(walletRepo, s.db)
+	walletService := service.NewWalletService(walletRepo, familyRepo, s.db)
 	proposalService := service.NewProposalService(proposalRepo, walletRepo, s.db)
 
 	familyHandler := handler.NewFamilyHandler(familyService)
@@ -100,15 +100,18 @@ func (s *Server) setupRoutes() {
 	protected := v1.Group("")
 	protected.Use(middleware.AuthMiddleware(s.cfg.JWTSecret))
 	{
-		protected.POST("/wallets", walletHandler.CreateWallet)
+		// Admin-only wallet creation
+		protected.POST("/wallets", middleware.RequireRole("admin"), walletHandler.CreateWallet)
 		protected.GET("/wallets", walletHandler.GetWallets)
+
+		// Proposals
 		protected.POST("/proposals", proposalHandler.CreateProposal)
-		protected.POST("/:id/reject", proposalHandler.RejectProposal)
+		protected.POST("/proposals/:id/reject", middleware.RequireRole("admin"), proposalHandler.RejectProposal)
 
 		// Family routes
-        protected.POST("/families", familyHandler.CreateFamily)
-        protected.POST("/families/join", familyHandler.JoinFamily)
-        protected.GET("/families/me", familyHandler.GetMyFamily)
+		protected.POST("/families", familyHandler.CreateFamily)
+		protected.POST("/families/join", familyHandler.JoinFamily)
+		protected.GET("/families/me", familyHandler.GetMyFamily)
 	}
 }
 
