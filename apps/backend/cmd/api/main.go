@@ -3,29 +3,29 @@ package main
 import (
 	"log"
 
-	"github.com/Bainandhika/acis/apps/backend/internal/config"
-	"github.com/Bainandhika/acis/apps/backend/internal/database"
-	"github.com/Bainandhika/acis/apps/backend/internal/server"
-	"github.com/Bainandhika/acis/apps/backend/pkg/logger"
+	"github.com/Bainandhika/acis/apps/backend/config"
+	"github.com/Bainandhika/acis/apps/backend/infrastructure/bootstrap"
+	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
+	"github.com/Bainandhika/acis/apps/backend/shared/logger"
 )
 
 func main() {
-	// 1. Initialize Logger
+	// 1. Initialize Global Logger
 	logger.Init("./logs")
 
-	// 2. Load Configuration
-	cfg := config.Load()
+	// 2. Load Modular Configuration (acis-config.yaml + .env secrets)
+	cfg := config.Load("acis-config.yaml")
 
-	// 3. Initialize Database
+	// 3. Initialize Database Connection Pool
 	db, err := database.NewConnection(cfg.DSN())
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Fatalf("Failed to initialize database connection pool: %v", err)
 	}
-	defer db.Close() // Pastikan koneksi DB ditutup pas app mati
+	defer db.Close()
 
-	// 4. Setup and Start Server
-	srv := server.NewServer(cfg, db)
+	// 4. Instantiate & Start Modular Monolith Server
+	srv := bootstrap.NewServer(cfg, db)
 	if err := srv.Start(); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatalf("Failed to start application server: %v", err)
 	}
 }
