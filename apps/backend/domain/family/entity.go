@@ -1,0 +1,33 @@
+package family
+
+import "time"
+
+type Family struct {
+	ID         string    `db:"id" json:"id"`
+	Name       string    `db:"name" json:"name"`
+	InviteCode string    `db:"invite_code" json:"invite_code"`
+	CreatedBy  *string   `db:"created_by" json:"created_by"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type FamilyMember struct {
+	ID       string    `db:"id" json:"id"`
+	FamilyID string    `db:"family_id" json:"family_id"`
+	UserID   string    `db:"user_id" json:"user_id"`
+	Role     string    `db:"role" json:"role"`
+	JoinedAt time.Time `db:"joined_at" json:"joined_at"`
+}
+
+type Wallet struct {
+	ID             string    `db:"id" json:"id"`
+	FamilyID       string    `db:"family_id" json:"family_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    *string   `db:"description" json:"description"`
+	InitialBalance float64   `db:"initial_balance" json:"initial_balance"`
+	CurrentBalance float64   `db:"current_balance" json:"current_balance"`
+	MinimumLimit   float64   `db:"minimum_limit" json:"minimum_limit"`
+	CreatedBy      *string   `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
