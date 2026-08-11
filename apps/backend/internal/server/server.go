@@ -67,17 +67,20 @@ func (s *Server) setupRoutes() {
 	familyRepo := repository.NewFamilyRepository(s.db)
 	walletRepo := repository.NewWalletRepository()
 	proposalRepo := repository.NewProposalRepository()
+	txRepo := repository.NewTransactionRepository()
 	authRepo := repository.NewAuthRepository(s.db)
 
 	familyService := service.NewFamilyService(familyRepo, userRepo, s.db)
 	authService := service.NewAuthService(authRepo, userRepo, s.cfg.JWTSecret)
 	walletService := service.NewWalletService(walletRepo, familyRepo, s.db)
 	proposalService := service.NewProposalService(proposalRepo, walletRepo, s.db)
+	txService := service.NewTransactionService(txRepo, walletRepo, s.db)
 
 	familyHandler := handler.NewFamilyHandler(familyService)
 	authHandler := handler.NewAuthHandler(authService)
 	walletHandler := handler.NewWalletHandler(walletService)
 	proposalHandler := handler.NewProposalHandler(proposalService)
+	txHandler := handler.NewTransactionHandler(txService)
 
 	// --- Health Check ---
 	s.router.GET("/health", func(c *gin.Context) {
@@ -114,7 +117,12 @@ func (s *Server) setupRoutes() {
 
 		// Proposals
 		protected.POST("/proposals", proposalHandler.CreateProposal)
+		protected.POST("/proposals/:id/approve", middleware.RequireRole("admin"), proposalHandler.ApproveProposal)
 		protected.POST("/proposals/:id/reject", middleware.RequireRole("admin"), proposalHandler.RejectProposal)
+
+		// Direct Transactions (Admin entry)
+		protected.POST("/transactions", middleware.RequireRole("admin"), txHandler.CreateTransaction)
+		protected.GET("/transactions", txHandler.GetTransactions)
 
 		// Family routes
 		protected.POST("/families", familyHandler.CreateFamily)
