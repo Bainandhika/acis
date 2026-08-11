@@ -14,21 +14,34 @@ import (
 
 type WalletService interface {
 	CreateWallet(ctx context.Context, req dto.CreateWalletRequest, createdBy string) (*dto.WalletResponse, error)
-	GetWallets(ctx context.Context, familyID string) ([]dto.WalletResponse, error)
+	GetWallets(ctx context.Context, familyID string, userID string) ([]dto.WalletResponse, error)
 }
 
 type walletService struct {
 	walletRepo repository.WalletRepository
+	familyRepo repository.FamilyRepository
 	db         *database.AppDB // Added to pass as DBExecutor to repository
 }
 
-func NewWalletService(walletRepo repository.WalletRepository, db *database.AppDB) WalletService {
-	return &walletService{walletRepo: walletRepo, db: db}
+func NewWalletService(walletRepo repository.WalletRepository, familyRepo repository.FamilyRepository, db *database.AppDB) WalletService {
+	return &walletService{
+		walletRepo: walletRepo,
+		familyRepo: familyRepo,
+		db:         db,
+	}
 }
 
 func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRequest, createdBy string) (*dto.WalletResponse, error) {
 	if req.Name == "" {
 		return nil, errors.New("wallet name cannot be empty")
+	}
+
+	// Tenant validation: ensure creator belongs to the family
+	if s.familyRepo != nil {
+		member, err := s.familyRepo.GetMemberByUserID(ctx, s.db, createdBy)
+		if err != nil || member == nil || member.FamilyID != req.FamilyID {
+			return nil, errors.New("unauthorized: user does not belong to this family")
+		}
 	}
 
 	walletID := uuid.New().String()
@@ -46,7 +59,7 @@ func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRe
 
 	// Pass s.db as the executor since this is a non-transactional operation
 	if err := s.walletRepo.Create(ctx, s.db, wallet); err != nil {
-		log.Error().Err(err).Str("trace_id", ctx.Value("X-Transaction-ID").(string)).Msg("Failed to create wallet in DB")
+		log.Error().Err(err).Msg("Failed to create wallet in DB")
 		return nil, errors.New("failed to create wallet")
 	}
 
@@ -63,7 +76,15 @@ func (s *walletService) CreateWallet(ctx context.Context, req dto.CreateWalletRe
 	return response, nil
 }
 
-func (s *walletService) GetWallets(ctx context.Context, familyID string) ([]dto.WalletResponse, error) {
+func (s *walletService) GetWallets(ctx context.Context, familyID string, userID string) ([]dto.WalletResponse, error) {
+	// Tenant validation: ensure user belongs to requested family (Prevent IDOR)
+	if s.familyRepo != nil {
+		member, err := s.familyRepo.GetMemberByUserID(ctx, s.db, userID)
+		if err != nil || member == nil || member.FamilyID != familyID {
+			return nil, errors.New("unauthorized: user does not belong to this family")
+		}
+	}
+
 	// Pass s.db as the executor
 	wallets, err := s.walletRepo.GetByFamilyID(ctx, s.db, familyID)
 	if err != nil {
