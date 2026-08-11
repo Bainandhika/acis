@@ -18,6 +18,7 @@ import (
 	"github.com/Bainandhika/acis/apps/backend/internal/middleware"
 	"github.com/Bainandhika/acis/apps/backend/internal/repository"
 	"github.com/Bainandhika/acis/apps/backend/internal/shared/cache"
+	"github.com/Bainandhika/acis/apps/backend/internal/telegram"
 	"github.com/Bainandhika/acis/apps/backend/internal/transaction"
 	"github.com/Bainandhika/acis/apps/backend/internal/worker"
 	"github.com/gin-contrib/cors"
@@ -25,13 +26,14 @@ import (
 )
 
 type Server struct {
-	cfg        *config.Config
-	db         *database.AppDB
-	router     *gin.Engine
-	workerPool *worker.WorkerPool
-	poller     *worker.OutboxPoller
-	otpCache   *cache.OTPCache
-	limiter    *cache.TokenBucketLimiter
+	cfg            *config.Config
+	db             *database.AppDB
+	router         *gin.Engine
+	workerPool     *worker.WorkerPool
+	poller         *worker.OutboxPoller
+	reminderWorker *telegram.LowBalanceWorker
+	otpCache       *cache.OTPCache
+	limiter        *cache.TokenBucketLimiter
 }
 
 func NewServer(cfg *config.Config, db *database.AppDB) *Server {
@@ -70,7 +72,7 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 }
 
 func (s *Server) setupRoutes() {
-	// 1. Worker Pool & Outbox Poller Setup
+	// 1. Outbox Repository & Worker Pool Setup
 	outboxRepo := repository.NewOutboxRepository(s.db)
 	s.workerPool = worker.NewWorkerPool(outboxRepo, 3, 100)
 	s.workerPool.Start(context.Background())
@@ -78,13 +80,21 @@ func (s *Server) setupRoutes() {
 	s.poller = worker.NewOutboxPoller(outboxRepo, s.workerPool, 2*time.Second, 20)
 	s.poller.Start(context.Background())
 
-	// Register default notification handlers
+	// Telegram Client Setup
+	tgToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	tgClient := telegram.NewClient(tgToken)
+
+	// Register Outbox Notification Handlers
 	s.workerPool.RegisterHandler("email_otp", func(ctx context.Context, job domain.NotificationJob) error {
 		log.Printf("📧 Outbox worker sending Email OTP to %s: %s\n", job.Recipient, string(job.Payload))
 		return nil
 	})
 	s.workerPool.RegisterHandler("proposal_approved", func(ctx context.Context, job domain.NotificationJob) error {
 		log.Printf("🔔 Outbox worker sending Proposal Approved notification to %s: %s\n", job.Recipient, string(job.Payload))
+		return nil
+	})
+	s.workerPool.RegisterHandler("telegram_alert", func(ctx context.Context, job domain.NotificationJob) error {
+		log.Printf("⚠️ Outbox worker sending Telegram Alert to %s: %s\n", job.Recipient, string(job.Payload))
 		return nil
 	})
 
@@ -101,6 +111,14 @@ func (s *Server) setupRoutes() {
 	txSvc := transaction.NewService(txRepo, outboxRepo, s.db)
 	txHandler := transaction.NewHandler(txSvc)
 
+	// Telegram Module Dependency Injection
+	botService := telegram.NewBotService(txSvc, familySvc, tgClient)
+	webhookHandler := telegram.NewWebhookHandler(botService, tgClient)
+
+	// Start Low Balance Cron Worker
+	s.reminderWorker = telegram.NewLowBalanceWorker(familySvc, outboxRepo, s.db, 1*time.Hour)
+	s.reminderWorker.Start(context.Background())
+
 	// 3. Public Routes
 	v1 := s.router.Group("/api/v1")
 	{
@@ -109,6 +127,9 @@ func (s *Server) setupRoutes() {
 		})
 		v1.POST("/auth/request-otp", authHandler.RequestOTP)
 		v1.POST("/auth/verify-otp", authHandler.VerifyOTP)
+
+		// Telegram Webhook Channel Endpoint
+		v1.POST("/telegram/webhook", webhookHandler.HandleWebhook)
 	}
 
 	// 4. Protected Routes
@@ -155,6 +176,9 @@ func (s *Server) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	if s.reminderWorker != nil {
+		s.reminderWorker.Stop()
+	}
 	if s.poller != nil {
 		s.poller.Stop()
 	}
