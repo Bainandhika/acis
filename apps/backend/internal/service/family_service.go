@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
-	"math/rand"
+	"math/big"
 	"strings"
 	"time"
 
@@ -37,12 +38,18 @@ func NewFamilyService(familyRepo repository.FamilyRepository, userRepo repositor
 	}
 }
 
-// generateInviteCode creates a random 6-char uppercase code
+// generateInviteCode creates a cryptographically secure random 6-char uppercase code
 func generateInviteCode() string {
 	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, 6)
+	maxLen := big.NewInt(int64(len(letters)))
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		n, err := rand.Int(rand.Reader, maxLen)
+		if err != nil {
+			b[i] = letters[0]
+		} else {
+			b[i] = letters[n.Int64()]
+		}
 	}
 	return string(b)
 }
