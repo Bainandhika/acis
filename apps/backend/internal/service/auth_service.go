@@ -75,7 +75,7 @@ func (s *authService) RequestOTP(ctx context.Context, req dto.RequestOTPRequest)
 
 	// 5. Mock Email Sending (For MVP, we log it. In prod, use Resend/SendGrid)
 	// TODO: Integrate with Resend API here
-	log.Info().Str("email", req.Email).Str("otp_code", otpCode).Msg("OTP Generated (Mock Email Send)")
+	log.Info().Str("email", req.Email).Msg("OTP Requested (Mock Email Send)")
 
 	return nil
 }
@@ -123,8 +123,7 @@ func (s *authService) VerifyOTP(ctx context.Context, req dto.VerifyOTPRequest) (
 		}
 	}
 
-	// 5. Determine Role (For MVP, check if user is admin of any family, else member)
-	// TODO: Implement proper role checking logic later. Default to 'member'.
+	// 5. Determine Role (Default to member; elevated to admin when creating family or explicitly assigned)
 	role := "member"
 
 	// 6. Generate JWT
