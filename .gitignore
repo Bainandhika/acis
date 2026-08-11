@@ -35,3 +35,10 @@ docker-compose.override.yml
 # Logs
 logs/
 *.log
+
+# SQL
+*.db
+*.sqlite
+
+# Documentation
+plans/
