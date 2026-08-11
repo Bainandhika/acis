@@ -10,6 +10,8 @@ import (
 
 type ProposalRepository interface {
 	Create(ctx context.Context, executor DBExecutor, proposal *domain.Proposal) error
+	GetByIDForUpdate(ctx context.Context, exec DBExecutor, proposalID string) (*domain.Proposal, error)
+	ApproveProposal(ctx context.Context, exec DBExecutor, proposalID string, reviewerID string) error
 	RejectProposal(ctx context.Context, exec DBExecutor, proposalID string, reviewerID string) error
 }
 
@@ -29,6 +31,50 @@ func (r *proposalRepo) Create(ctx context.Context, executor DBExecutor, proposal
 		Scan(&proposal.ID, &proposal.CreatedAt, &proposal.UpdatedAt)
 
 	return err
+}
+
+func (r *proposalRepo) GetByIDForUpdate(ctx context.Context, exec DBExecutor, proposalID string) (*domain.Proposal, error) {
+	query := `SELECT id, wallet_id, amount, description, status, proposed_by, reviewed_by, reviewed_at, created_at, updated_at
+	FROM proposals WHERE id = $1 FOR UPDATE`
+
+	var proposal domain.Proposal
+	err := exec.QueryRowContext(ctx, query, proposalID).Scan(
+		&proposal.ID, &proposal.WalletID, &proposal.Amount, &proposal.Description,
+		&proposal.Status, &proposal.ProposedBy, &proposal.ReviewedBy, &proposal.ReviewedAt,
+		&proposal.CreatedAt, &proposal.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &proposal, nil
+}
+
+func (r *proposalRepo) ApproveProposal(ctx context.Context, exec DBExecutor, proposalID string, reviewerID string) error {
+	query := `
+		UPDATE proposals 
+		SET 
+			status = 'approved', 
+			reviewed_by = $1, 
+			reviewed_at = NOW(), 
+			updated_at = NOW()
+		WHERE id = $2 AND status = 'pending'
+	`
+
+	result, err := exec.ExecContext(ctx, query, reviewerID, proposalID)
+	if err != nil {
+		return fmt.Errorf("ProposalRepository.ApproveProposal: failed to execute query: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ProposalRepository.ApproveProposal: failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("proposal not found or already processed")
+	}
+
+	return nil
 }
 
 func (r *proposalRepo) RejectProposal(ctx context.Context, exec DBExecutor, proposalID string, reviewerID string) error {
