@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Bainandhika/acis/apps/backend/internal/domain"
@@ -24,35 +23,19 @@ type authService struct {
 	authRepo  repository.AuthRepository
 	userRepo  repository.UserRepository
 	jwtSecret string
-
-	// In-memory rate limiter for MVP
-	rateLimitMap map[string]time.Time
-	mu           sync.Mutex
 }
 
 func NewAuthService(authRepo repository.AuthRepository, userRepo repository.UserRepository, jwtSecret string) AuthService {
 	return &authService{
-		authRepo:     authRepo,
-		userRepo:     userRepo,
-		jwtSecret:    jwtSecret,
-		rateLimitMap: make(map[string]time.Time),
+		authRepo:  authRepo,
+		userRepo:  userRepo,
+		jwtSecret: jwtSecret,
 	}
 }
 
 // RequestOTP handles OTP generation and "sending"
 func (s *authService) RequestOTP(ctx context.Context, req dto.RequestOTPRequest) error {
-	// 1. Rate Limiting Check (Max 1 request per 60 seconds per email)
-	s.mu.Lock()
-	if lastReq, exists := s.rateLimitMap[req.Email]; exists {
-		if time.Since(lastReq) < 60*time.Second {
-			s.mu.Unlock()
-			return errors.New("too many requests. please wait 60 seconds")
-		}
-	}
-	s.rateLimitMap[req.Email] = time.Now()
-	s.mu.Unlock()
-
-	// 2. Generate Cryptographically Secure OTP
+	// 1. Generate Cryptographically Secure OTP
 	otpCode, err := auth.GenerateOTP()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to generate OTP")
