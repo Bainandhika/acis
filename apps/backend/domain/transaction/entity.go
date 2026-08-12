@@ -7,6 +7,7 @@ type Transaction struct {
 	WalletID    string    `db:"wallet_id" json:"wallet_id"`
 	Amount      float64   `db:"amount" json:"amount"`
 	Type        string    `db:"type" json:"type"`
+	Category    *string   `db:"category" json:"category"`
 	Description *string   `db:"description" json:"description"`
 	CreatedBy   *string   `db:"created_by" json:"created_by"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
@@ -28,6 +29,7 @@ type Wallet struct {
 type Proposal struct {
 	ID          string     `db:"id" json:"id"`
 	WalletID    string     `db:"wallet_id" json:"wallet_id"`
+	Title       *string    `db:"title" json:"title"`
 	Amount      float64    `db:"amount" json:"amount"`
 	Description string     `db:"description" json:"description"`
 	Status      string     `db:"status" json:"status"`
