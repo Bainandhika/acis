@@ -35,6 +35,19 @@ type LowBalanceWalletDTO struct {
 	TelegramChatID *int64  `json:"telegram_chat_id,omitempty"`
 }
 
+type FamilyDTO struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	InviteCode     string `json:"invite_code"`
+	TelegramChatID *int64 `json:"telegram_chat_id,omitempty"`
+}
+
+type FamilyMemberDTO struct {
+	ID       string `json:"id"`
+	UserID   string `json:"user_id"`
+	Role     string `json:"role"`
+}
+
 type TransactionService interface {
 	CreateDirectTransaction(ctx context.Context, req CreateTransactionDTO) (*TransactionDTO, error)
 }
@@ -42,4 +55,7 @@ type TransactionService interface {
 type FamilyService interface {
 	GetWalletBalances(ctx context.Context, familyID string) ([]WalletBalanceDTO, error)
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
+	FindByTelegramChatID(ctx context.Context, chatID int64) (*FamilyDTO, error)
+	LinkTelegramChatID(ctx context.Context, inviteCode string, chatID int64) error
+	GetMembers(ctx context.Context, familyID string) ([]FamilyMemberDTO, error)
 }
