@@ -3,10 +3,31 @@ package bootstrap
 import (
 	"context"
 
+	"github.com/Bainandhika/acis/apps/backend/domain/authentication"
 	"github.com/Bainandhika/acis/apps/backend/domain/family"
 	"github.com/Bainandhika/acis/apps/backend/domain/telegram"
 	"github.com/Bainandhika/acis/apps/backend/domain/transaction"
 )
+
+// roleFinderAdapter bridges authentication.RoleFinder to family.FamilyRepository
+type roleFinderAdapter struct {
+	repo family.FamilyRepository
+}
+
+func NewRoleFinderAdapter(repo family.FamilyRepository) authentication.RoleFinder {
+	return &roleFinderAdapter{repo: repo}
+}
+
+func (a *roleFinderAdapter) FindRoleByUserID(ctx context.Context, userID string) (string, error) {
+	member, err := a.repo.FindMemberByUserID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if member == nil {
+		return "", nil
+	}
+	return member.Role, nil
+}
 
 type telegramTxAdapter struct {
 	svc transaction.TransactionService
