@@ -21,7 +21,7 @@ export interface OTPRequestPayload {
 
 export interface VerifyOTPPayload {
     email: string;
-    code: string;
+    otp: string;
 }
 
 // --- Pinia Store ---
@@ -37,13 +37,13 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Actions (Methods)
     async function requestOTP(email: string): Promise<void> {
-        await apiClient.post('/auth/request-otp', { email } as OTPRequestPayload);
+        await apiClient.post('/authentication/request-otp', { email } as OTPRequestPayload);
     }
 
     async function verifyOTP(email: string, code: string): Promise<void> {
         const { data } = await apiClient.post<AuthResponse>(
-            '/auth/verify-otp',
-            { email, code } as VerifyOTPPayload
+            '/authentication/verify-otp',
+            { email, otp: code } as VerifyOTPPayload
         );
 
         token.value = data.token;
