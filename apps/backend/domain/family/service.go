@@ -61,7 +61,7 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string) (
 	}
 	defer tx.Rollback()
 
-	if err := s.repo.CreateFamily(ctx, family); err != nil {
+	if err := s.repo.CreateFamily(ctx, tx, family); err != nil {
 		return nil, errors.New("failed to create family record")
 	}
 
@@ -71,7 +71,7 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string) (
 		UserID:   userID,
 		Role:     "admin",
 	}
-	if err := s.repo.AddMember(ctx, member); err != nil {
+	if err := s.repo.AddMember(ctx, tx, member); err != nil {
 		return nil, errors.New("failed to add admin family member")
 	}
 
@@ -108,7 +108,7 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 		UserID:   userID,
 		Role:     "member",
 	}
-	if err := s.repo.AddMember(ctx, member); err != nil {
+	if err := s.repo.AddMember(ctx, s.db, member); err != nil {
 		return nil, errors.New("failed to join family")
 	}
 
