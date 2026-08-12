@@ -21,6 +21,9 @@ type FamilyRepository interface {
 	FindMemberByUserID(ctx context.Context, userID string) (*FamilyMember, error)
 	AddMember(ctx context.Context, exec DBExecutor, member *FamilyMember) error
 	GetMembers(ctx context.Context, familyID string) ([]FamilyMember, error)
+	UpdateTelegramChatID(ctx context.Context, familyID string, chatID *int64) error
+	FindByTelegramChatID(ctx context.Context, chatID int64) (*Family, error)
+	UpdateMonthlyIncome(ctx context.Context, familyID string, income float64) error
 
 	CreateWallet(ctx context.Context, wallet *Wallet) error
 	GetWalletsByFamilyID(ctx context.Context, familyID string) ([]Wallet, error)
@@ -37,12 +40,12 @@ func NewRepository(db *database.AppDB) FamilyRepository {
 }
 
 func (r *familyRepoImpl) CreateFamily(ctx context.Context, exec DBExecutor, f *Family) error {
-	query := `INSERT INTO families (id, name, invite_code, created_by) VALUES ($1, $2, $3, $4) RETURNING created_at, updated_at`
-	return exec.QueryRowContext(ctx, query, f.ID, f.Name, f.InviteCode, f.CreatedBy).Scan(&f.CreatedAt, &f.UpdatedAt)
+	query := `INSERT INTO families (id, name, invite_code, monthly_income, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING created_at, updated_at`
+	return exec.QueryRowContext(ctx, query, f.ID, f.Name, f.InviteCode, f.MonthlyIncome, f.CreatedBy).Scan(&f.CreatedAt, &f.UpdatedAt)
 }
 
 func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string) (*Family, error) {
-	query := `SELECT id, name, invite_code, created_by, created_at, updated_at FROM families WHERE invite_code = $1`
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, created_by, created_at, updated_at FROM families WHERE invite_code = $1`
 	var f Family
 	err := r.db.GetContext(ctx, &f, query, inviteCode)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -52,7 +55,7 @@ func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string
 }
 
 func (r *familyRepoImpl) FindFamilyByUserID(ctx context.Context, userID string) (*Family, error) {
-	query := `SELECT f.id, f.name, f.invite_code, f.created_by, f.created_at, f.updated_at 
+	query := `SELECT f.id, f.name, f.invite_code, f.telegram_chat_id, f.monthly_income, f.created_by, f.created_at, f.updated_at 
 			  FROM families f
 			  JOIN family_members fm ON f.id = fm.family_id
 			  WHERE fm.user_id = $1 LIMIT 1`
@@ -86,6 +89,28 @@ func (r *familyRepoImpl) GetMembers(ctx context.Context, familyID string) ([]Fam
 	return members, err
 }
 
+func (r *familyRepoImpl) UpdateTelegramChatID(ctx context.Context, familyID string, chatID *int64) error {
+	query := `UPDATE families SET telegram_chat_id = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, chatID, familyID)
+	return err
+}
+
+func (r *familyRepoImpl) FindByTelegramChatID(ctx context.Context, chatID int64) (*Family, error) {
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, created_by, created_at, updated_at FROM families WHERE telegram_chat_id = $1`
+	var f Family
+	err := r.db.GetContext(ctx, &f, query, chatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &f, err
+}
+
+func (r *familyRepoImpl) UpdateMonthlyIncome(ctx context.Context, familyID string, income float64) error {
+	query := `UPDATE families SET monthly_income = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, income, familyID)
+	return err
+}
+
 func (r *familyRepoImpl) CreateWallet(ctx context.Context, w *Wallet) error {
 	query := `INSERT INTO wallets (id, family_id, name, description, initial_balance, current_balance, minimum_limit, created_by) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING created_at, updated_at`
@@ -113,8 +138,10 @@ func (r *familyRepoImpl) GetWalletByID(ctx context.Context, walletID string) (*W
 }
 
 func (r *familyRepoImpl) GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error) {
-	query := `SELECT id AS wallet_id, name AS wallet_name, family_id, current_balance, minimum_limit 
-			  FROM wallets WHERE current_balance <= minimum_limit`
+	query := `SELECT w.id AS wallet_id, w.name AS wallet_name, w.family_id, w.current_balance, w.minimum_limit, f.telegram_chat_id 
+			  FROM wallets w
+			  JOIN families f ON w.family_id = f.id
+			  WHERE w.current_balance <= w.minimum_limit`
 	var list []LowBalanceWalletDTO
 	err := r.db.SelectContext(ctx, &list, query)
 	return list, err
