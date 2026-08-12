@@ -1,6 +1,6 @@
 # ACIS - Product Requirements Document (PRD)
-**Version:** 1.1.0 (Updated with Architecture Details)
-**Last Updated:** 2026-06-07
+**Version:** 1.2.0 (Updated: Auth Method & Telegram Scope)
+**Last Updated:** 2026-08-12
 **Author:** Bagas
 
 ## 1. Product Overview
@@ -12,8 +12,7 @@ ACIS (Aplikasi Catatan Keuangan Istri/Suami) adalah aplikasi manajemen keuangan 
 
 ## 3. Core Features (MVP)
 ### 3.1. Authentication & Authorization (Passwordless)
-- **Google OAuth (1-Click):** Menggunakan Google Identity Services.
-- **Email OTP (Passwordless):** 6-digit code, expire in 5 mins, dikirim via Resend/SendGrid.
+- **Email OTP (Passwordless):** 6-digit code, expire in 5 mins, dikirim via SMTP menggunakan Resend.
 - **Session Management:** JWT disimpan di `HttpOnly`, `Secure`, `SameSite=Strict` cookies (Mencegah XSS).
 - **Role-Based Access Control (RBAC):** Middleware enforcement untuk Admin vs Member routes.
 
@@ -27,7 +26,7 @@ ACIS (Aplikasi Catatan Keuangan Istri/Suami) adalah aplikasi manajemen keuangan 
 - **Member:** Mengajukan pengeluaran (Status: `PENDING`).
 - **Approval Flow:** Admin Approve/Reject proposal. Jika di-approve, saldo dompet terpotong otomatis dalam satu transaksi DB (Atomic).
 
-### 3.4. Telegram Bot Integration (Phase 2)
+### 3.4. Telegram Bot Integration
 - Input transaksi via chat (format: `/catat [dompet] [nominal] [keterangan]`).
 - Cek saldo via chat (`/saldo`).
 - *Cron job* reminder jika saldo dompet <= `minimum_limit`.
@@ -41,3 +40,4 @@ acis/
 ├── apps/frontend/     # Vue 3 SPA (Vite + Pinia)
 ├── migrations/        # Shared SQL Migration files
 └── docker-compose.yml # Local PostgreSQL setup
+```
