@@ -5,6 +5,7 @@ const API_BASE_URL = 'http://localhost:8080/api/v1';
 // Create axios instance with base config
 const apiClient: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
     },
