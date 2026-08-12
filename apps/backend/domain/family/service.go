@@ -13,13 +13,19 @@ import (
 )
 
 type FamilyService interface {
-	CreateFamily(ctx context.Context, userID, name string) (*FamilyDTO, error)
+	CreateFamily(ctx context.Context, userID, name string, monthlyIncome float64) (*FamilyDTO, error)
 	JoinFamily(ctx context.Context, userID, inviteCode string) (*FamilyDTO, error)
 	GetMyFamily(ctx context.Context, userID string) (*FamilyDTO, error)
+	UpdateFamilySettings(ctx context.Context, familyID string, req UpdateFamilySettingsReq) error
+	DisconnectTelegram(ctx context.Context, familyID string) error
+	FindByInviteCode(ctx context.Context, inviteCode string) (*FamilyDTO, error)
+	FindByTelegramChatID(ctx context.Context, chatID int64) (*FamilyDTO, error)
+	LinkTelegramChatID(ctx context.Context, inviteCode string, chatID int64) error
 	CreateWallet(ctx context.Context, userID, familyID string, req CreateWalletReq) (*WalletDTO, error)
 	GetWallets(ctx context.Context, familyID string) ([]WalletDTO, error)
 	GetWalletBalances(ctx context.Context, familyID string) ([]WalletBalanceDTO, error)
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
+	GetMembers(ctx context.Context, familyID string) ([]FamilyMemberDTO, error)
 }
 
 type familyService struct {
@@ -34,7 +40,7 @@ func NewService(repo FamilyRepository, db *database.AppDB) FamilyService {
 	}
 }
 
-func (s *familyService) CreateFamily(ctx context.Context, userID, name string) (*FamilyDTO, error) {
+func (s *familyService) CreateFamily(ctx context.Context, userID, name string, monthlyIncome float64) (*FamilyDTO, error) {
 	existing, err := s.repo.FindFamilyByUserID(ctx, userID)
 	if err != nil {
 		return nil, errors.New("failed to check existing family membership")
@@ -49,10 +55,11 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string) (
 	}
 
 	family := &Family{
-		ID:         uuid.NewString(),
-		Name:       name,
-		InviteCode: inviteCode,
-		CreatedBy:  &userID,
+		ID:            uuid.NewString(),
+		Name:          name,
+		InviteCode:    inviteCode,
+		MonthlyIncome: monthlyIncome,
+		CreatedBy:     &userID,
 	}
 
 	tx, err := s.db.BeginTxx(ctx, nil)
@@ -80,11 +87,12 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string) (
 	}
 
 	return &FamilyDTO{
-		ID:         family.ID,
-		Name:       family.Name,
-		InviteCode: family.InviteCode,
-		CreatedBy:  family.CreatedBy,
-		CreatedAt:  family.CreatedAt,
+		ID:            family.ID,
+		Name:          family.Name,
+		InviteCode:    family.InviteCode,
+		MonthlyIncome: family.MonthlyIncome,
+		CreatedBy:     family.CreatedBy,
+		CreatedAt:     family.CreatedAt,
 	}, nil
 }
 
@@ -113,11 +121,13 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 	}
 
 	return &FamilyDTO{
-		ID:         family.ID,
-		Name:       family.Name,
-		InviteCode: family.InviteCode,
-		CreatedBy:  family.CreatedBy,
-		CreatedAt:  family.CreatedAt,
+		ID:             family.ID,
+		Name:           family.Name,
+		InviteCode:     family.InviteCode,
+		TelegramChatID: family.TelegramChatID,
+		MonthlyIncome:  family.MonthlyIncome,
+		CreatedBy:      family.CreatedBy,
+		CreatedAt:      family.CreatedAt,
 	}, nil
 }
 
@@ -143,13 +153,85 @@ func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*Family
 	}
 
 	return &FamilyDTO{
-		ID:         family.ID,
-		Name:       family.Name,
-		InviteCode: family.InviteCode,
-		CreatedBy:  family.CreatedBy,
-		Members:    memberDTOs,
-		CreatedAt:  family.CreatedAt,
+		ID:             family.ID,
+		Name:           family.Name,
+		InviteCode:     family.InviteCode,
+		TelegramChatID: family.TelegramChatID,
+		MonthlyIncome:  family.MonthlyIncome,
+		CreatedBy:      family.CreatedBy,
+		Members:        memberDTOs,
+		CreatedAt:      family.CreatedAt,
 	}, nil
+}
+
+func (s *familyService) UpdateFamilySettings(ctx context.Context, familyID string, req UpdateFamilySettingsReq) error {
+	if req.MonthlyIncome != nil {
+		if err := s.repo.UpdateMonthlyIncome(ctx, familyID, *req.MonthlyIncome); err != nil {
+			return errors.New("failed to update monthly income")
+		}
+	}
+	return nil
+}
+
+func (s *familyService) DisconnectTelegram(ctx context.Context, familyID string) error {
+	return s.repo.UpdateTelegramChatID(ctx, familyID, nil)
+}
+
+func (s *familyService) FindByInviteCode(ctx context.Context, inviteCode string) (*FamilyDTO, error) {
+	family, err := s.repo.FindByInviteCode(ctx, inviteCode)
+	if err != nil || family == nil {
+		return nil, errors.New("family not found")
+	}
+	return &FamilyDTO{
+		ID:             family.ID,
+		Name:           family.Name,
+		InviteCode:     family.InviteCode,
+		TelegramChatID: family.TelegramChatID,
+		MonthlyIncome:  family.MonthlyIncome,
+		CreatedBy:      family.CreatedBy,
+		CreatedAt:      family.CreatedAt,
+	}, nil
+}
+
+func (s *familyService) FindByTelegramChatID(ctx context.Context, chatID int64) (*FamilyDTO, error) {
+	family, err := s.repo.FindByTelegramChatID(ctx, chatID)
+	if err != nil || family == nil {
+		return nil, errors.New("family not found for this telegram chat")
+	}
+	return &FamilyDTO{
+		ID:             family.ID,
+		Name:           family.Name,
+		InviteCode:     family.InviteCode,
+		TelegramChatID: family.TelegramChatID,
+		MonthlyIncome:  family.MonthlyIncome,
+		CreatedBy:      family.CreatedBy,
+		CreatedAt:      family.CreatedAt,
+	}, nil
+}
+
+func (s *familyService) LinkTelegramChatID(ctx context.Context, inviteCode string, chatID int64) error {
+	family, err := s.repo.FindByInviteCode(ctx, inviteCode)
+	if err != nil || family == nil {
+		return errors.New("invalid invite code")
+	}
+	return s.repo.UpdateTelegramChatID(ctx, family.ID, &chatID)
+}
+
+func (s *familyService) GetMembers(ctx context.Context, familyID string) ([]FamilyMemberDTO, error) {
+	members, err := s.repo.GetMembers(ctx, familyID)
+	if err != nil {
+		return nil, errors.New("failed to fetch members")
+	}
+	var dtos []FamilyMemberDTO
+	for _, m := range members {
+		dtos = append(dtos, FamilyMemberDTO{
+			ID:       m.ID,
+			UserID:   m.UserID,
+			Role:     m.Role,
+			JoinedAt: m.JoinedAt,
+		})
+	}
+	return dtos, nil
 }
 
 func (s *familyService) CreateWallet(ctx context.Context, userID, familyID string, req CreateWalletReq) (*WalletDTO, error) {
