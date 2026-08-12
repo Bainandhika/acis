@@ -106,3 +106,36 @@ func (a *telegramFamilyAdapter) GetLowBalanceWallets(ctx context.Context) ([]tel
 	}
 	return dtos, nil
 }
+
+func (a *telegramFamilyAdapter) FindByTelegramChatID(ctx context.Context, chatID int64) (*telegram.FamilyDTO, error) {
+	res, err := a.svc.FindByTelegramChatID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return &telegram.FamilyDTO{
+		ID:             res.ID,
+		Name:           res.Name,
+		InviteCode:     res.InviteCode,
+		TelegramChatID: res.TelegramChatID,
+	}, nil
+}
+
+func (a *telegramFamilyAdapter) LinkTelegramChatID(ctx context.Context, inviteCode string, chatID int64) error {
+	return a.svc.LinkTelegramChatID(ctx, inviteCode, chatID)
+}
+
+func (a *telegramFamilyAdapter) GetMembers(ctx context.Context, familyID string) ([]telegram.FamilyMemberDTO, error) {
+	members, err := a.svc.GetMembers(ctx, familyID)
+	if err != nil {
+		return nil, err
+	}
+	var dtos []telegram.FamilyMemberDTO
+	for _, m := range members {
+		dtos = append(dtos, telegram.FamilyMemberDTO{
+			ID:     m.ID,
+			UserID: m.UserID,
+			Role:   m.Role,
+		})
+	}
+	return dtos, nil
+}
