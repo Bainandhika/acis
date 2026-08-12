@@ -17,6 +17,12 @@ const routes = [
     meta: { requiresGuest: true }
   },
   {
+    path: '/family-setup',
+    name: 'FamilySetup',
+    component: () => import('../views/FamilySetupView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/',
     name: 'Dashboard',
     component: () => import('../views/DashboardView.vue'),
