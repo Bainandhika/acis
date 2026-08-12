@@ -166,6 +166,9 @@ func (s *Server) setupRoutes() {
 	familyProtected.Use(middleware.AuthMiddleware(s.cfg.JWT.Secret))
 	familyProtected.Use(middleware.FamilyContextMiddleware(s.db))
 	{
+		familyProtected.PATCH("/family/settings", middleware.RequireRole("admin"), familyHandler.UpdateSettings)
+		familyProtected.POST("/family/telegram/disconnect", middleware.RequireRole("admin"), familyHandler.DisconnectTelegram)
+
 		familyProtected.POST("/family/wallets", middleware.RequireRole("admin"), familyHandler.CreateWallet)
 		familyProtected.GET("/family/wallets", familyHandler.GetWallets)
 
