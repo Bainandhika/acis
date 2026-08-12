@@ -19,12 +19,14 @@ type OTPEntry struct {
 }
 
 type OTPCache struct {
-	cache *TTLCache[string, OTPEntry]
+	cache      *TTLCache[string, OTPEntry]
+	rateLimits *TTLCache[string, int]
 }
 
 func NewOTPCache(cleanupInterval time.Duration) *OTPCache {
 	return &OTPCache{
-		cache: NewTTLCache[string, OTPEntry](cleanupInterval),
+		cache:      NewTTLCache[string, OTPEntry](cleanupInterval),
+		rateLimits: NewTTLCache[string, int](cleanupInterval),
 	}
 }
 
@@ -37,6 +39,20 @@ func (o *OTPCache) StoreOTP(email, code string, ttl time.Duration) {
 		AttemptsLeft: 3,
 	}
 	o.cache.Set(email, entry, ttl)
+}
+
+func (o *OTPCache) CanRequestOTP(email string) bool {
+	key := "req:" + email
+	count, found := o.rateLimits.Get(key)
+	if !found {
+		o.rateLimits.Set(key, 1, 15*time.Minute)
+		return true
+	}
+	if count >= 3 {
+		return false
+	}
+	o.rateLimits.Set(key, count+1, 15*time.Minute)
+	return true
 }
 
 func (o *OTPCache) VerifyOTP(email, code string) (bool, error) {
