@@ -29,6 +29,11 @@ func (m *MockTransactionRepository) CreateProposal(ctx context.Context, prop *tr
 	return args.Error(0)
 }
 
+func (m *MockTransactionRepository) GetProposalsByFamilyID(ctx context.Context, familyID string) ([]transaction.Proposal, error) {
+	args := m.Called(ctx, familyID)
+	return args.Get(0).([]transaction.Proposal), args.Error(1)
+}
+
 func (m *MockTransactionRepository) GetProposalForUpdate(ctx context.Context, exec transaction.DBExecutor, proposalID string) (*transaction.Proposal, error) {
 	args := m.Called(ctx, exec, proposalID)
 	if args.Get(0) == nil {
