@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -77,30 +78,50 @@ func (s *Server) setupRoutes() {
 	s.poller = worker.NewOutboxPoller(outboxRepo, s.workerPool, 2*time.Second, 20)
 	s.poller.Start(context.Background())
 
-	// Telegram Client Setup
+	// Telegram & Resend Client Setup
 	tgToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	tgClient := telegram.NewClient(tgToken)
+	resendApiKey := os.Getenv("RESEND_API_KEY")
+	resendSender := notification.NewResendSender(resendApiKey)
 
 	// Register Outbox Notification Handlers
 	s.workerPool.RegisterHandler("email_otp", func(ctx context.Context, job notification.NotificationJob) error {
-		log.Printf("📧 Outbox worker sending Email OTP to %s: %s\n", job.Recipient, string(job.Payload))
-		return nil
+		var payload map[string]string
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return err
+		}
+		log.Printf("📧 Outbox worker sending Email OTP to %s\n", job.Recipient)
+		return resendSender.SendOTP(ctx, job.Recipient, payload["code"])
 	})
 	s.workerPool.RegisterHandler("proposal_approved", func(ctx context.Context, job notification.NotificationJob) error {
-		log.Printf("🔔 Outbox worker sending Proposal Approved notification to %s: %s\n", job.Recipient, string(job.Payload))
+		log.Printf("🔔 Outbox worker sending Proposal Approved notification to %s\n", job.Recipient)
 		return nil
 	})
 	s.workerPool.RegisterHandler("telegram_alert", func(ctx context.Context, job notification.NotificationJob) error {
-		log.Printf("⚠️ Outbox worker sending Telegram Alert to %s: %s\n", job.Recipient, string(job.Payload))
+		var payload map[string]interface{}
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return err
+		}
+		var chatID int64
+		if _, err := fmt.Sscanf(job.Recipient, "%d", &chatID); err == nil && chatID != 0 {
+			msg := fmt.Sprintf("⚠️ *Peringatan Saldo Dompet Rendah*\n\nDompet: *%v*\nSaldo: Rp %.2f\nLimit Min: Rp %.2f",
+				payload["wallet_name"], payload["current_balance"], payload["minimum_limit"])
+			return tgClient.SendMessage(ctx, chatID, msg)
+		}
+		log.Printf("⚠️ Outbox worker processed Telegram Alert for recipient: %s\n", job.Recipient)
 		return nil
 	})
 
 	// Domain Modules Dependency Injection
 	authRepo := authentication.NewRepository(s.db)
-	authSvc := authentication.NewService(authRepo, outboxRepo, s.otpCache, s.db, s.cfg.JWT.Secret)
-	authHandler := authentication.NewAuthHandler(authSvc)
-
 	familyRepo := family.NewRepository(s.db)
+
+	// RoleFinder adapter: bridges authentication.RoleFinder interface to family repo
+	roleFinder := NewRoleFinderAdapter(familyRepo)
+	authSvc := authentication.NewService(authRepo, roleFinder, outboxRepo, s.otpCache, s.db, s.cfg.JWT.Secret)
+	isProduction := s.cfg.Server.Mode == "release"
+	authHandler := authentication.NewAuthHandler(authSvc, isProduction)
+
 	familySvc := family.NewService(familyRepo, s.db)
 	familyHandler := family.NewHandler(familySvc)
 
@@ -123,33 +144,37 @@ func (s *Server) setupRoutes() {
 		v1.GET("/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "ACIS Modular Monolith API is running"})
 		})
-		v1.POST("/auth/request-otp", authHandler.RequestOTP)
-		v1.POST("/auth/verify-otp", authHandler.VerifyOTP)
+
+		v1.POST("/authentication/request-otp", authHandler.RequestOTP)
+		v1.POST("/authentication/verify-otp", authHandler.VerifyOTP)
 
 		v1.POST("/telegram/webhook", webhookHandler.HandleWebhook)
 	}
 
-	// Protected Routes
-	protected := v1.Group("")
-	jwtSecret := s.cfg.JWT.Secret
-	if jwtSecret == "" {
-		jwtSecret = s.cfg.JWT.Secret
-	}
-	protected.Use(middleware.AuthMiddleware(jwtSecret))
+	// Protected Routes — Family Setup (no family context needed)
+	familySetup := v1.Group("")
+	familySetup.Use(middleware.AuthMiddleware(s.cfg.JWT.Secret))
 	{
-		protected.POST("/wallets", middleware.RequireRole("admin"), familyHandler.CreateWallet)
-		protected.GET("/wallets", familyHandler.GetWallets)
+		familySetup.POST("/authentication/logout", authHandler.Logout)
+		familySetup.POST("/family", familyHandler.CreateFamily)
+		familySetup.POST("/family/join", familyHandler.JoinFamily)
+		familySetup.GET("/family/me", familyHandler.GetMyFamily)
+	}
 
-		protected.POST("/proposals", txHandler.CreateProposal)
-		protected.POST("/proposals/:id/approve", middleware.RequireRole("admin"), txHandler.ApproveProposal)
-		protected.POST("/proposals/:id/reject", middleware.RequireRole("admin"), txHandler.RejectProposal)
+	// Protected Routes — Requires family membership (family_id injected into context)
+	familyProtected := v1.Group("")
+	familyProtected.Use(middleware.AuthMiddleware(s.cfg.JWT.Secret))
+	familyProtected.Use(middleware.FamilyContextMiddleware(s.db))
+	{
+		familyProtected.POST("/family/wallets", middleware.RequireRole("admin"), familyHandler.CreateWallet)
+		familyProtected.GET("/family/wallets", familyHandler.GetWallets)
 
-		protected.POST("/transactions", middleware.RequireRole("admin"), txHandler.CreateTransaction)
-		protected.GET("/transactions", txHandler.GetTransactions)
-
-		protected.POST("/families", familyHandler.CreateFamily)
-		protected.POST("/families/join", familyHandler.JoinFamily)
-		protected.GET("/families/me", familyHandler.GetMyFamily)
+		familyProtected.POST("/transaction", middleware.RequireRole("admin"), txHandler.CreateTransaction)
+		familyProtected.GET("/transaction", txHandler.GetTransactions)
+		familyProtected.POST("/transaction/proposals", txHandler.CreateProposal)
+		familyProtected.GET("/transaction/proposals", txHandler.GetProposals)
+		familyProtected.POST("/transaction/proposals/:id/approve", middleware.RequireRole("admin"), txHandler.ApproveProposal)
+		familyProtected.POST("/transaction/proposals/:id/reject", middleware.RequireRole("admin"), txHandler.RejectProposal)
 	}
 }
 
