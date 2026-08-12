@@ -1,4 +1,4 @@
-﻿version: '3.8'
+version: '3.8'
 services:
   acis_db:
     image: postgres:15-alpine
@@ -19,7 +19,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@local.com
       PGADMIN_DEFAULT_PASSWORD: admin123
     ports:
-      - "8080:80"
+      - "5050:80"
     depends_on:
       - acis_db
     volumes:
