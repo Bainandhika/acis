@@ -8,6 +8,7 @@ const router = useRouter()
 
 const activeTab = ref<'create' | 'join'>('create')
 const familyName = ref('')
+const monthlyIncome = ref<number | null>(null)
 const inviteCode = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
@@ -17,7 +18,7 @@ const handleCreate = async () => {
   loading.value = true
   errorMessage.value = ''
   try {
-    await familyStore.handleCreateFamily(familyName.value.trim())
+    await familyStore.handleCreateFamily(familyName.value.trim(), monthlyIncome.value || 0)
     router.push('/')
   } catch (err: any) {
     errorMessage.value = familyStore.error || 'Gagal membuat keluarga.'
@@ -75,12 +76,21 @@ const handleJoin = async () => {
 
         <!-- Tab 1: Create Family -->
         <div v-if="activeTab === 'create'">
-          <div class="form-control w-full">
+          <div class="form-control w-full mb-3">
             <label class="label"><span class="label-text">Nama Keluarga</span></label>
             <input 
               type="text" 
               v-model="familyName" 
               placeholder="Contoh: Keluarga Cemara" 
+              class="input input-bordered w-full" 
+            />
+          </div>
+          <div class="form-control w-full mb-3">
+            <label class="label"><span class="label-text">Estimasi Pendapatan Bulanan (Rp)</span></label>
+            <input 
+              type="number" 
+              v-model.number="monthlyIncome" 
+              placeholder="10000000" 
               class="input input-bordered w-full" 
             />
           </div>
