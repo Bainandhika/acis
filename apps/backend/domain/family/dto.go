@@ -3,20 +3,27 @@ package family
 import "time"
 
 type CreateFamilyReq struct {
-	Name string `json:"name" binding:"required,min=3,max=50"`
+	Name          string  `json:"name" binding:"required,min=3,max=50"`
+	MonthlyIncome float64 `json:"monthly_income" binding:"gte=0"`
 }
 
 type JoinFamilyReq struct {
 	InviteCode string `json:"invite_code" binding:"required,len=6"`
 }
 
+type UpdateFamilySettingsReq struct {
+	MonthlyIncome *float64 `json:"monthly_income,omitempty" binding:"omitempty,gte=0"`
+}
+
 type FamilyDTO struct {
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	InviteCode string            `json:"invite_code"`
-	CreatedBy  *string           `json:"created_by,omitempty"`
-	Members    []FamilyMemberDTO `json:"members,omitempty"`
-	CreatedAt  time.Time         `json:"created_at"`
+	ID             string            `json:"id"`
+	Name           string            `json:"name"`
+	InviteCode     string            `json:"invite_code"`
+	TelegramChatID *int64            `json:"telegram_chat_id,omitempty"`
+	MonthlyIncome  float64           `json:"monthly_income"`
+	CreatedBy      *string           `json:"created_by,omitempty"`
+	Members        []FamilyMemberDTO `json:"members,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
 }
 
 type FamilyMemberDTO struct {
