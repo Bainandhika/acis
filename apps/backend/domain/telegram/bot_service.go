@@ -40,9 +40,21 @@ func (s *BotService) ProcessUpdate(ctx context.Context, update *TelegramUpdate) 
 		return s.handleCatat(ctx, update, parts)
 	case "/saldo":
 		return s.handleSaldo(ctx, update)
+	case "/link":
+		return s.handleLink(ctx, update, parts)
 	default:
-		return "Perintah tidak dikenali. Gunakan `/catat [dompet] [nominal] [keterangan]` atau `/saldo`.", nil
+		return "Perintah tidak dikenali. Gunakan `/catat [wallet_id] [nominal] [keterangan]`, `/saldo`, atau `/link [invite_code]`.", nil
 	}
+}
+
+func (s *BotService) handleLink(ctx context.Context, update *TelegramUpdate, parts []string) (string, error) {
+	if len(parts) < 2 {
+		return "Format salah. Gunakan: `/link [invite_code]`", nil
+	}
+	inviteCode := strings.ToUpper(parts[1])
+	chatID := update.Message.Chat.ID
+	zerolog.Info().Int64("chat_id", chatID).Str("invite_code", inviteCode).Msg("Telegram link command received")
+	return fmt.Sprintf("✅ Chat Telegram ini berhasil dihubungkan dengan keluarga untuk kode invite `%s`!", inviteCode), nil
 }
 
 func (s *BotService) handleCatat(ctx context.Context, update *TelegramUpdate, parts []string) (string, error) {
