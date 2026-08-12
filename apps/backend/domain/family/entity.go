@@ -3,12 +3,14 @@ package family
 import "time"
 
 type Family struct {
-	ID         string    `db:"id" json:"id"`
-	Name       string    `db:"name" json:"name"`
-	InviteCode string    `db:"invite_code" json:"invite_code"`
-	CreatedBy  *string   `db:"created_by" json:"created_by"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	ID             string    `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	InviteCode     string    `db:"invite_code" json:"invite_code"`
+	TelegramChatID *int64    `db:"telegram_chat_id" json:"telegram_chat_id,omitempty"`
+	MonthlyIncome  float64   `db:"monthly_income" json:"monthly_income"`
+	CreatedBy      *string   `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type FamilyMember struct {
