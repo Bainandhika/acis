@@ -53,13 +53,38 @@ func (s *BotService) handleLink(ctx context.Context, update *TelegramUpdate, par
 	}
 	inviteCode := strings.ToUpper(parts[1])
 	chatID := update.Message.Chat.ID
-	zerolog.Info().Int64("chat_id", chatID).Str("invite_code", inviteCode).Msg("Telegram link command received")
+	
+	if err := s.familyService.LinkTelegramChatID(ctx, inviteCode, chatID); err != nil {
+		zerolog.Error().Err(err).Int64("chat_id", chatID).Str("invite_code", inviteCode).Msg("Failed to link Telegram chat")
+		return "❌ Gagal menghubungkan Telegram. Pastikan Kode Invite benar.", nil
+	}
+
+	zerolog.Info().Int64("chat_id", chatID).Str("invite_code", inviteCode).Msg("Telegram link command succeeded")
 	return fmt.Sprintf("✅ Chat Telegram ini berhasil dihubungkan dengan keluarga untuk kode invite `%s`!", inviteCode), nil
 }
 
 func (s *BotService) handleCatat(ctx context.Context, update *TelegramUpdate, parts []string) (string, error) {
 	if len(parts) < 4 {
 		return "Format salah. Gunakan: `/catat [wallet_id] [nominal] [keterangan]`", nil
+	}
+
+	chatID := update.Message.Chat.ID
+	fam, err := s.familyService.FindByTelegramChatID(ctx, chatID)
+	if err != nil || fam == nil {
+		return "⚠️ Chat Telegram ini belum terhubung dengan keluarga. Gunakan `/link [invite_code]` terlebih dahulu.", nil
+	}
+
+	members, err := s.familyService.GetMembers(ctx, fam.ID)
+	if err != nil || len(members) == 0 {
+		return "⚠️ Tidak dapat menemukan anggota keluarga.", nil
+	}
+
+	adminUserID := members[0].UserID
+	for _, m := range members {
+		if m.Role == "admin" {
+			adminUserID = m.UserID
+			break
+		}
 	}
 
 	walletID := parts[1]
@@ -71,9 +96,24 @@ func (s *BotService) handleCatat(ctx context.Context, update *TelegramUpdate, pa
 		return "Nominal transaksi tidak valid.", nil
 	}
 
+	balances, err := s.familyService.GetWalletBalances(ctx, fam.ID)
+	if err != nil {
+		return "⚠️ Gagal memverifikasi dompet.", nil
+	}
+	walletValid := false
+	for _, b := range balances {
+		if b.WalletID == walletID {
+			walletValid = true
+			break
+		}
+	}
+	if !walletValid {
+		return "❌ Wallet ID tidak ditemukan dalam keluarga Anda. Gunakan `/saldo` untuk melihat daftar Wallet ID.", nil
+	}
+
 	req := CreateTransactionDTO{
 		WalletID:    walletID,
-		UserID:      fmt.Sprintf("telegram:%d", update.Message.Chat.ID),
+		UserID:      adminUserID,
 		Type:        "expense",
 		Amount:      amount,
 		Category:    "telegram_catat",
@@ -83,15 +123,20 @@ func (s *BotService) handleCatat(ctx context.Context, update *TelegramUpdate, pa
 	res, err := s.txService.CreateDirectTransaction(ctx, req)
 	if err != nil {
 		zerolog.Error().Err(err).Msg("Failed to process /catat via Telegram")
-		return fmt.Sprintf("❌ Gagal mencatat transaksi: %s", err.Error()), nil
+		return "❌ Gagal mencatat transaksi: saldo tidak cukup atau kesalahan sistem.", nil
 	}
 
 	return fmt.Sprintf("✅ Transaksi tersimpan! ID: `%s`, Nominal: Rp %.2f", res.ID, res.Amount), nil
 }
 
 func (s *BotService) handleSaldo(ctx context.Context, update *TelegramUpdate) (string, error) {
-	familyID := "default"
-	balances, err := s.familyService.GetWalletBalances(ctx, familyID)
+	chatID := update.Message.Chat.ID
+	fam, err := s.familyService.FindByTelegramChatID(ctx, chatID)
+	if err != nil || fam == nil {
+		return "⚠️ Chat Telegram ini belum terhubung dengan keluarga. Gunakan `/link [invite_code]` terlebih dahulu.", nil
+	}
+
+	balances, err := s.familyService.GetWalletBalances(ctx, fam.ID)
 	if err != nil {
 		return "⚠️ Gagal mengambil saldo dompet.", nil
 	}
@@ -101,9 +146,9 @@ func (s *BotService) handleSaldo(ctx context.Context, update *TelegramUpdate) (s
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📊 *Ringkasan Saldo Dompet Keluarga*\n\n")
+	sb.WriteString(fmt.Sprintf("📊 *Ringkasan Saldo Dompet Keluarga (%s)*\n\n", fam.Name))
 	for _, b := range balances {
-		sb.WriteString(fmt.Sprintf("• *%s*: Rp %.2f (Min: Rp %.2f)\n", b.WalletName, b.CurrentBalance, b.MinimumLimit))
+		sb.WriteString(fmt.Sprintf("• *%s* (ID: `%s`): Rp %.2f (Min: Rp %.2f)\n", b.WalletName, b.WalletID, b.CurrentBalance, b.MinimumLimit))
 	}
 
 	return sb.String(), nil
