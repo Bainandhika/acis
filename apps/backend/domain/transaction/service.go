@@ -15,6 +15,7 @@ type TransactionService interface {
 	CreateDirectTransaction(ctx context.Context, req CreateTransactionDTO) (*TransactionDTO, error)
 	GetTransactions(ctx context.Context, familyID string) ([]TransactionDTO, error)
 	CreateProposal(ctx context.Context, req CreateProposalDTO) (*ProposalDTO, error)
+	GetProposals(ctx context.Context, familyID string) ([]ProposalDTO, error)
 	ApproveProposal(ctx context.Context, proposalID string, reviewerID string) error
 	RejectProposal(ctx context.Context, proposalID string, reviewerID string) error
 }
@@ -67,6 +68,7 @@ func (s *transactionService) CreateDirectTransaction(ctx context.Context, req Cr
 		CreatedBy:   &req.UserID,
 		Type:        req.Type,
 		Amount:      req.Amount,
+		Category:    &req.Category,
 		Description: req.Description,
 	}
 
@@ -111,11 +113,39 @@ func (s *transactionService) GetTransactions(ctx context.Context, familyID strin
 	return dtos, nil
 }
 
+func (s *transactionService) GetProposals(ctx context.Context, familyID string) ([]ProposalDTO, error) {
+	records, err := s.repo.GetProposalsByFamilyID(ctx, familyID)
+	if err != nil {
+		return nil, errors.New("failed to fetch proposals")
+	}
+
+	var dtos []ProposalDTO
+	for _, r := range records {
+		title := ""
+		if r.Title != nil {
+			title = *r.Title
+		}
+		dtos = append(dtos, ProposalDTO{
+			ID:          r.ID,
+			WalletID:    r.WalletID,
+			ProposedBy:  r.ProposedBy,
+			Title:       title,
+			Amount:      r.Amount,
+			Description: r.Description,
+			Status:      r.Status,
+			ReviewedBy:  r.ReviewedBy,
+			ReviewedAt:  r.ReviewedAt,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return dtos, nil
+}
 func (s *transactionService) CreateProposal(ctx context.Context, req CreateProposalDTO) (*ProposalDTO, error) {
 	prop := &Proposal{
 		ID:          uuid.NewString(),
 		WalletID:    req.WalletID,
 		ProposedBy:  &req.ProposedBy,
+		Title:       &req.Title,
 		Amount:      req.Amount,
 		Description: req.Description,
 		Status:      "pending",
