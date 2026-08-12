@@ -14,6 +14,11 @@ import (
 	zerolog "github.com/rs/zerolog/log"
 )
 
+// RoleFinder looks up a user's family role. Implemented by the family repository adapter in bootstrap.
+type RoleFinder interface {
+	FindRoleByUserID(ctx context.Context, userID string) (string, error)
+}
+
 type AuthService interface {
 	RequestOTP(ctx context.Context, req RequestOTPReq) error
 	VerifyOTP(ctx context.Context, req VerifyOTPReq) (*AuthResponse, error)
@@ -21,15 +26,17 @@ type AuthService interface {
 
 type authService struct {
 	repo       AuthRepository
+	roleFinder RoleFinder
 	outboxRepo notification.OutboxRepository
 	otpCache   *cache.OTPCache
 	db         *database.AppDB
 	jwtSecret  string
 }
 
-func NewService(repo AuthRepository, outboxRepo notification.OutboxRepository, otpCache *cache.OTPCache, db *database.AppDB, jwtSecret string) AuthService {
+func NewService(repo AuthRepository, roleFinder RoleFinder, outboxRepo notification.OutboxRepository, otpCache *cache.OTPCache, db *database.AppDB, jwtSecret string) AuthService {
 	return &authService{
 		repo:       repo,
+		roleFinder: roleFinder,
 		outboxRepo: outboxRepo,
 		otpCache:   otpCache,
 		db:         db,
@@ -38,6 +45,10 @@ func NewService(repo AuthRepository, outboxRepo notification.OutboxRepository, o
 }
 
 func (s *authService) RequestOTP(ctx context.Context, req RequestOTPReq) error {
+	if !s.otpCache.CanRequestOTP(req.Email) {
+		return errors.New("too many OTP requests. Please wait 15 minutes")
+	}
+
 	otpCode, err := security.GenerateOTP()
 	if err != nil {
 		zerolog.Error().Err(err).Msg("Failed to generate secure OTP")
@@ -95,7 +106,15 @@ func (s *authService) VerifyOTP(ctx context.Context, req VerifyOTPReq) (*AuthRes
 		}
 	}
 
-	token, err := security.GenerateToken(user.ID, "member", s.jwtSecret, 24)
+	// Look up the user's actual family role; default to "member" if not in a family yet
+	role := "member"
+	if s.roleFinder != nil {
+		if foundRole, err := s.roleFinder.FindRoleByUserID(ctx, user.ID); err == nil && foundRole != "" {
+			role = foundRole
+		}
+	}
+
+	token, err := security.GenerateToken(user.ID, role, s.jwtSecret, 24)
 	if err != nil {
 		return nil, errors.New("failed to generate access token")
 	}
@@ -106,6 +125,7 @@ func (s *authService) VerifyOTP(ctx context.Context, req VerifyOTPReq) (*AuthRes
 			ID:        user.ID,
 			Email:     user.Email,
 			Name:      user.Name,
+			Role:      role,
 			AvatarURL: user.AvatarURL,
 		},
 	}, nil
