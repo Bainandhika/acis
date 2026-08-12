@@ -8,13 +8,20 @@ import (
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 )
 
+// DBExecutor abstracts *sql.DB and *sql.Tx so repo methods can run inside a transaction.
+type DBExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+}
+
 type FamilyRepository interface {
-	CreateFamily(ctx context.Context, family *Family) error
+	CreateFamily(ctx context.Context, exec DBExecutor, family *Family) error
 	FindByInviteCode(ctx context.Context, inviteCode string) (*Family, error)
 	FindFamilyByUserID(ctx context.Context, userID string) (*Family, error)
-	AddMember(ctx context.Context, member *FamilyMember) error
+	FindMemberByUserID(ctx context.Context, userID string) (*FamilyMember, error)
+	AddMember(ctx context.Context, exec DBExecutor, member *FamilyMember) error
 	GetMembers(ctx context.Context, familyID string) ([]FamilyMember, error)
-	
+
 	CreateWallet(ctx context.Context, wallet *Wallet) error
 	GetWalletsByFamilyID(ctx context.Context, familyID string) ([]Wallet, error)
 	GetWalletByID(ctx context.Context, walletID string) (*Wallet, error)
@@ -29,9 +36,9 @@ func NewRepository(db *database.AppDB) FamilyRepository {
 	return &familyRepoImpl{db: db}
 }
 
-func (r *familyRepoImpl) CreateFamily(ctx context.Context, f *Family) error {
+func (r *familyRepoImpl) CreateFamily(ctx context.Context, exec DBExecutor, f *Family) error {
 	query := `INSERT INTO families (id, name, invite_code, created_by) VALUES ($1, $2, $3, $4) RETURNING created_at, updated_at`
-	return r.db.QueryRowContext(ctx, query, f.ID, f.Name, f.InviteCode, f.CreatedBy).Scan(&f.CreatedAt, &f.UpdatedAt)
+	return exec.QueryRowContext(ctx, query, f.ID, f.Name, f.InviteCode, f.CreatedBy).Scan(&f.CreatedAt, &f.UpdatedAt)
 }
 
 func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string) (*Family, error) {
@@ -57,9 +64,19 @@ func (r *familyRepoImpl) FindFamilyByUserID(ctx context.Context, userID string) 
 	return &f, err
 }
 
-func (r *familyRepoImpl) AddMember(ctx context.Context, m *FamilyMember) error {
+func (r *familyRepoImpl) FindMemberByUserID(ctx context.Context, userID string) (*FamilyMember, error) {
+	query := `SELECT id, family_id, user_id, role, joined_at FROM family_members WHERE user_id = $1 LIMIT 1`
+	var m FamilyMember
+	err := r.db.GetContext(ctx, &m, query, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &m, err
+}
+
+func (r *familyRepoImpl) AddMember(ctx context.Context, exec DBExecutor, m *FamilyMember) error {
 	query := `INSERT INTO family_members (id, family_id, user_id, role) VALUES ($1, $2, $3, $4) RETURNING joined_at`
-	return r.db.QueryRowContext(ctx, query, m.ID, m.FamilyID, m.UserID, m.Role).Scan(&m.JoinedAt)
+	return exec.QueryRowContext(ctx, query, m.ID, m.FamilyID, m.UserID, m.Role).Scan(&m.JoinedAt)
 }
 
 func (r *familyRepoImpl) GetMembers(ctx context.Context, familyID string) ([]FamilyMember, error) {
@@ -70,9 +87,9 @@ func (r *familyRepoImpl) GetMembers(ctx context.Context, familyID string) ([]Fam
 }
 
 func (r *familyRepoImpl) CreateWallet(ctx context.Context, w *Wallet) error {
-	query := `INSERT INTO wallets (id, family_id, name, description, initial_balance, current_balance, minimum_limit) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created_at, updated_at`
-	return r.db.QueryRowContext(ctx, query, w.ID, w.FamilyID, w.Name, w.Description, w.InitialBalance, w.CurrentBalance, w.MinimumLimit).
+	query := `INSERT INTO wallets (id, family_id, name, description, initial_balance, current_balance, minimum_limit, created_by) 
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING created_at, updated_at`
+	return r.db.QueryRowContext(ctx, query, w.ID, w.FamilyID, w.Name, w.Description, w.InitialBalance, w.CurrentBalance, w.MinimumLimit, w.CreatedBy).
 		Scan(&w.CreatedAt, &w.UpdatedAt)
 }
 
