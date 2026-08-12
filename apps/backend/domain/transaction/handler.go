@@ -73,6 +73,19 @@ func (h *TransactionHandler) CreateProposal(c *gin.Context) {
 	})
 }
 
+func (h *TransactionHandler) GetProposals(c *gin.Context) {
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+
+	res, err := h.svc.GetProposals(c.Request.Context(), fIDStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": res})
+}
+
 func (h *TransactionHandler) ApproveProposal(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	uidStr, _ := userID.(string)
