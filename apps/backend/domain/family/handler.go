@@ -28,7 +28,7 @@ func (h *FamilyHandler) CreateFamily(c *gin.Context) {
 		return
 	}
 
-	res, err := h.svc.CreateFamily(c.Request.Context(), uidStr, req.Name)
+	res, err := h.svc.CreateFamily(c.Request.Context(), uidStr, req.Name, req.MonthlyIncome)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -81,6 +81,36 @@ func (h *FamilyHandler) GetMyFamily(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": res})
+}
+
+func (h *FamilyHandler) UpdateSettings(c *gin.Context) {
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+
+	var req UpdateFamilySettingsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.svc.UpdateFamilySettings(c.Request.Context(), fIDStr, req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Family settings updated successfully"})
+}
+
+func (h *FamilyHandler) DisconnectTelegram(c *gin.Context) {
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+
+	if err := h.svc.DisconnectTelegram(c.Request.Context(), fIDStr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Telegram disconnected successfully"})
 }
 
 func (h *FamilyHandler) CreateWallet(c *gin.Context) {
