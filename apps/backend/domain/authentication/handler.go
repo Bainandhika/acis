@@ -7,11 +7,12 @@ import (
 )
 
 type AuthHandler struct {
-	authService AuthService
+	authService  AuthService
+	isProduction bool
 }
 
-func NewAuthHandler(authService AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService AuthService, isProduction bool) *AuthHandler {
+	return &AuthHandler{authService: authService, isProduction: isProduction}
 }
 
 func (h *AuthHandler) RequestOTP(c *gin.Context) {
@@ -45,7 +46,14 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	}
 
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("auth_token", resp.Token, 86400, "/", "", false, true)
+	c.SetCookie("auth_token", resp.Token, 86400, "/", "", h.isProduction, true)
 
 	c.JSON(http.StatusOK, resp)
 }
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("auth_token", "", -1, "/", "", h.isProduction, true)
+	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
+}
+
