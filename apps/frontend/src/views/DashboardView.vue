@@ -48,6 +48,30 @@ const newProposal = ref<CreateProposalPayload>({
   description: '',
 })
 
+// Computed Income & Allocation
+const totalAllocation = computed(() => {
+  return walletStore.wallets.reduce((sum, w) => sum + w.initial_balance, 0)
+})
+
+const monthlyIncome = computed(() => {
+  return familyStore.family?.monthly_income || 0
+})
+
+const exceedsIncome = computed(() => {
+  if (monthlyIncome.value <= 0) return false
+  return (totalAllocation.value + newWallet.value.initial_balance) > monthlyIncome.value
+})
+
+const handleDisconnectTelegram = async () => {
+  if (confirm('Yakin ingin memutuskan koneksi bot Telegram?')) {
+    try {
+      await familyStore.handleDisconnectTelegram()
+    } catch (e) {
+      alert('Gagal memutuskan koneksi Telegram!')
+    }
+  }
+}
+
 onMounted(async () => {
   await familyStore.fetchMyFamily()
   if (!familyStore.family) {
@@ -198,6 +222,62 @@ const getWalletName = (id: string) => {
           <button v-if="isAdmin" class="btn btn-primary" @click="openWalletModal">+ Tambah Dompet</button>
         </div>
 
+        <!-- Budget Allocation Summary Card -->
+        <div class="card bg-base-100 shadow-sm border border-base-300 mb-6">
+          <div class="card-body p-4 md:p-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 class="font-bold text-lg">Ringkasan Alokasi Anggaran</h3>
+                <p class="text-xs text-gray-500">Total alokasi dompet virtual berbasis sistem amplop</p>
+              </div>
+              <div class="flex gap-6 text-sm">
+                <div>
+                  <span class="text-gray-500 block text-xs">Total Alokasi Awal</span>
+                  <span class="font-bold text-primary">{{ formatRupiah(totalAllocation) }}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500 block text-xs">Pendapatan Bulanan</span>
+                  <span class="font-bold text-secondary">{{ monthlyIncome > 0 ? formatRupiah(monthlyIncome) : 'Belum diatur' }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-if="monthlyIncome > 0" class="w-full bg-gray-200 rounded-full h-2.5 mt-3">
+              <div 
+                class="h-2.5 rounded-full" 
+                :class="totalAllocation > monthlyIncome ? 'bg-error' : 'bg-success'"
+                :style="{ width: Math.min((totalAllocation / monthlyIncome) * 100, 100) + '%' }"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telegram Integration Card -->
+        <div class="card bg-base-100 shadow-sm border border-base-300 mb-6">
+          <div class="card-body p-4 md:p-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-bold text-lg">Integrasi Telegram Bot 🤖</h3>
+                  <span v-if="familyStore.family?.telegram_chat_id" class="badge badge-success text-white">Terhubung</span>
+                  <span v-else class="badge badge-warning">Belum Terhubung</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">
+                  Catat pengeluaran & cek saldo langsung via Telegram Bot!
+                </p>
+              </div>
+
+              <div v-if="familyStore.family?.telegram_chat_id">
+                <button class="btn btn-outline btn-sm btn-error" @click="handleDisconnectTelegram">Putuskan Koneksi</button>
+              </div>
+            </div>
+
+            <div v-if="!familyStore.family?.telegram_chat_id" class="bg-base-200 p-3 rounded-lg mt-3 text-xs flex flex-col md:flex-row gap-2 justify-between items-center">
+              <span>Buka bot Telegram, lalu kirim perintah berikut untuk menghubungkan:</span>
+              <code class="bg-base-300 px-3 py-1 rounded font-mono font-bold text-primary">/link {{ familyStore.family?.invite_code }}</code>
+            </div>
+          </div>
+        </div>
+
         <div v-if="walletStore.loading" class="flex justify-center py-20">
           <span class="loading loading-spinner loading-lg text-primary"></span>
         </div>
@@ -329,6 +409,11 @@ const getWalletName = (id: string) => {
     <dialog :class="isWalletModalOpen ? 'modal modal-open' : 'modal'">
       <div class="modal-box">
         <h3 class="font-bold text-lg mb-4">Buat Dompet Baru</h3>
+
+        <div v-if="exceedsIncome" class="alert alert-error text-xs mb-4">
+          <span>⚠️ Total alokasi awal dompet melebihi pendapatan bulanan keluarga!</span>
+        </div>
+
         <div class="form-control w-full mb-3">
           <label class="label"><span class="label-text">Nama Dompet</span></label>
           <input type="text" v-model="newWallet.name" placeholder="Contoh: Makan Bulanan" class="input input-bordered w-full" />
@@ -349,7 +434,7 @@ const getWalletName = (id: string) => {
         </div>
         <div class="modal-action">
           <button class="btn" @click="closeWalletModal" :disabled="isSubmitting">Batal</button>
-          <button class="btn btn-primary" @click="handleSubmitWallet" :class="{ loading: isSubmitting }" :disabled="isSubmitting || !newWallet.name">Simpan</button>
+          <button class="btn btn-primary" @click="handleSubmitWallet" :class="{ loading: isSubmitting }" :disabled="isSubmitting || !newWallet.name || exceedsIncome">Simpan</button>
         </div>
       </div>
     </dialog>
