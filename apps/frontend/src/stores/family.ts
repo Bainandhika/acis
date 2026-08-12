@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { getMyFamily, createFamily, joinFamily, type Family } from '../services/family';
+import { getMyFamily, createFamily, joinFamily, updateFamilySettings, disconnectTelegram, type Family } from '../services/family';
 
 export const useFamilyStore = defineStore('family', () => {
   const family = ref<Family | null>(null);
@@ -21,11 +21,11 @@ export const useFamilyStore = defineStore('family', () => {
     }
   }
 
-  async function handleCreateFamily(name: string) {
+  async function handleCreateFamily(name: string, monthlyIncome: number = 0) {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await createFamily(name);
+      const { data } = await createFamily(name, monthlyIncome);
       family.value = data.data;
       await fetchMyFamily();
     } catch (err: any) {
@@ -51,5 +51,42 @@ export const useFamilyStore = defineStore('family', () => {
     }
   }
 
-  return { family, loading, error, fetchMyFamily, handleCreateFamily, handleJoinFamily };
+  async function handleUpdateSettings(monthlyIncome: number) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await updateFamilySettings(monthlyIncome);
+      await fetchMyFamily();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to update settings';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function handleDisconnectTelegram() {
+    loading.value = true;
+    error.value = null;
+    try {
+      await disconnectTelegram();
+      await fetchMyFamily();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to disconnect Telegram';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return { 
+    family, 
+    loading, 
+    error, 
+    fetchMyFamily, 
+    handleCreateFamily, 
+    handleJoinFamily, 
+    handleUpdateSettings, 
+    handleDisconnectTelegram 
+  };
 });
