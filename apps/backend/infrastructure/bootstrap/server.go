@@ -23,11 +23,13 @@ import (
 	"github.com/Bainandhika/acis/apps/backend/shared/cache"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
 	cfg            *config.Config
 	db             *database.AppDB
+	redisClient    *redis.Client
 	router         *gin.Engine
 	workerPool     *worker.WorkerPool
 	poller         *worker.OutboxPoller
@@ -55,19 +57,31 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 	limiter := cache.NewTokenBucketLimiter(2, 5, 5*time.Minute)
 	r.Use(middleware.NativeRateLimitMiddleware(limiter))
 
-	otpCache := cache.NewOTPCache(1 * time.Minute)
+	redisAddr := fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port)
+	if cfg.Redis.Host == "" || cfg.Redis.Port == "" {
+		redisAddr = "localhost:6379"
+	}
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+
+	otpCache := cache.NewOTPCache(redisClient, cfg.OTP.EncryptionKey)
 
 	s := &Server{
-		cfg:      cfg,
-		db:       db,
-		router:   r,
-		otpCache: otpCache,
-		limiter:  limiter,
+		cfg:         cfg,
+		db:          db,
+		redisClient: redisClient,
+		router:      r,
+		otpCache:    otpCache,
+		limiter:     limiter,
 	}
 
 	s.setupRoutes()
 	return s
 }
+
 
 func (s *Server) setupRoutes() {
 	// Outbox Repository & Worker Pool Setup
@@ -118,9 +132,14 @@ func (s *Server) setupRoutes() {
 
 	// RoleFinder adapter: bridges authentication.RoleFinder interface to family repo
 	roleFinder := NewRoleFinderAdapter(familyRepo)
-	authSvc := authentication.NewService(authRepo, roleFinder, outboxRepo, s.otpCache, s.db, s.cfg.JWT.Secret)
+	otpTTL, err := time.ParseDuration(s.cfg.OTP.TTL)
+	if err != nil {
+		otpTTL = 5 * time.Minute
+	}
+	authSvc := authentication.NewService(authRepo, roleFinder, outboxRepo, s.otpCache, s.db, s.cfg.JWT.Secret, otpTTL)
 	isProduction := s.cfg.Server.Mode == "release"
 	authHandler := authentication.NewAuthHandler(authSvc, isProduction)
+
 
 	familySvc := family.NewService(familyRepo, s.db)
 	familyHandler := family.NewHandler(familySvc)
@@ -216,12 +235,14 @@ func (s *Server) Start() error {
 	if s.workerPool != nil {
 		s.workerPool.Stop()
 	}
-	if s.otpCache != nil {
-		s.otpCache.Close()
-	}
 	if s.limiter != nil {
 		s.limiter.Close()
 	}
+	if s.redisClient != nil {
+		s.redisClient.Close()
+	}
+
+
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal("Server Forced to Shutdown:", err)
