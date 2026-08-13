@@ -1,9 +1,14 @@
 package cache
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/Bainandhika/acis/apps/backend/shared/security"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -13,78 +18,117 @@ var (
 )
 
 type OTPEntry struct {
-	Code         string
-	AttemptsLeft int
-	LockoutUntil time.Time
+	EncryptedCode string    `json:"encrypted_code"`
+	AttemptsLeft  int       `json:"attempts_left"`
+	LockoutUntil  time.Time `json:"lockout_until"`
 }
 
 type OTPCache struct {
-	cache      *TTLCache[string, OTPEntry]
-	rateLimits *TTLCache[string, int]
+	client    redis.Cmdable
+	secretKey string
 }
 
-func NewOTPCache(cleanupInterval time.Duration) *OTPCache {
+func NewOTPCache(client redis.Cmdable, secretKey string) *OTPCache {
 	return &OTPCache{
-		cache:      NewTTLCache[string, OTPEntry](cleanupInterval),
-		rateLimits: NewTTLCache[string, int](cleanupInterval),
+		client:    client,
+		secretKey: secretKey,
 	}
 }
 
-func (o *OTPCache) StoreOTP(email, code string, ttl time.Duration) {
+func (o *OTPCache) getKey(email string) string {
+	return "otp:" + email
+}
+
+func (o *OTPCache) getRateKey(email string) string {
+	return "otp:rate:" + email
+}
+
+// StoreOTP encrypts the OTP using AES-GCM and stores only the encrypted payload in standalone Redis with configurable TTL
+func (o *OTPCache) StoreOTP(ctx context.Context, email, plainCode string, ttl time.Duration) error {
 	if ttl <= 0 {
 		ttl = 5 * time.Minute
 	}
+
+	encrypted, err := security.EncryptAESGCM(plainCode, o.secretKey)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt OTP: %w", err)
+	}
+
 	entry := OTPEntry{
-		Code:         code,
-		AttemptsLeft: 3,
+		EncryptedCode: encrypted,
+		AttemptsLeft:  3,
 	}
-	o.cache.Set(email, entry, ttl)
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+
+	return o.client.Set(ctx, o.getKey(email), data, ttl).Err()
 }
 
-func (o *OTPCache) CanRequestOTP(email string) bool {
-	key := "req:" + email
-	count, found := o.rateLimits.Get(key)
-	if !found {
-		o.rateLimits.Set(key, 1, 15*time.Minute)
-		return true
+// CanRequestOTP checks rate limits using standalone Redis
+func (o *OTPCache) CanRequestOTP(ctx context.Context, email string) (bool, error) {
+	key := o.getRateKey(email)
+	count, err := o.client.Incr(ctx, key).Result()
+	if err != nil {
+		return false, err
 	}
-	if count >= 3 {
-		return false
+	if count == 1 {
+		o.client.Expire(ctx, key, 15*time.Minute)
 	}
-	o.rateLimits.Set(key, count+1, 15*time.Minute)
-	return true
+	if count > 3 {
+		return false, nil
+	}
+	return true, nil
 }
 
-func (o *OTPCache) VerifyOTP(email, code string) (bool, error) {
-	entry, exists := o.cache.Get(email)
-	if !exists {
+// VerifyOTP fetches the encrypted OTP payload from Redis, decrypts it, and verifies match
+func (o *OTPCache) VerifyOTP(ctx context.Context, email, plainCode string) (bool, error) {
+	key := o.getKey(email)
+	val, err := o.client.Get(ctx, key).Result()
+	if errors.Is(err, redis.Nil) {
 		return false, ErrOTPNotFound
+	} else if err != nil {
+		return false, err
 	}
 
-	if time.Now().Before(entry.LockoutUntil) {
+	var entry OTPEntry
+	if err := json.Unmarshal([]byte(val), &entry); err != nil {
+		return false, err
+	}
+
+	if !entry.LockoutUntil.IsZero() && time.Now().Before(entry.LockoutUntil) {
 		return false, ErrOTPLockedOut
 	}
 
-	if entry.Code == code {
-		o.cache.Delete(email)
+	decryptedCode, err := security.DecryptAESGCM(entry.EncryptedCode, o.secretKey)
+	if err != nil {
+		return false, fmt.Errorf("failed to decrypt OTP: %w", err)
+	}
+
+	if decryptedCode == plainCode {
+		o.client.Del(ctx, key)
 		return true, nil
 	}
 
 	entry.AttemptsLeft--
 	if entry.AttemptsLeft <= 0 {
 		entry.LockoutUntil = time.Now().Add(5 * time.Minute)
-		o.cache.Set(email, entry, 5*time.Minute)
+		data, _ := json.Marshal(entry)
+		o.client.Set(ctx, key, data, 5*time.Minute)
 		return false, ErrOTPLockedOut
 	}
 
-	o.cache.Set(email, entry, 5*time.Minute)
+	data, _ := json.Marshal(entry)
+	ttl, _ := o.client.TTL(ctx, key).Result()
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	o.client.Set(ctx, key, data, ttl)
 	return false, fmt.Errorf("%w: %d attempts remaining", ErrInvalidOTP, entry.AttemptsLeft)
 }
 
-func (o *OTPCache) Delete(email string) {
-	o.cache.Delete(email)
-}
-
-func (o *OTPCache) Close() {
-	o.cache.Close()
+func (o *OTPCache) Delete(ctx context.Context, email string) error {
+	return o.client.Del(ctx, o.getKey(email)).Err()
 }
