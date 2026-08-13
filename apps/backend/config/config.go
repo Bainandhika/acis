@@ -35,11 +35,25 @@ type LogConfig struct {
 	Level string `yaml:"level"`
 }
 
+type RedisConfig struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
+}
+
+type OTPConfig struct {
+	TTL           string `yaml:"ttl"`
+	EncryptionKey string `yaml:"encryption_key"`
+}
+
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
 	JWT      JWTConfig      `yaml:"jwt"`
 	Log      LogConfig      `yaml:"log"`
+	Redis    RedisConfig    `yaml:"redis"`
+	OTP      OTPConfig      `yaml:"otp"`
 }
 
 var envPattern = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)(?::([^}]*))?\}`)
@@ -113,8 +127,19 @@ func defaultFallback() *Config {
 			Dir:   "./logs",
 			Level: "info",
 		},
+		Redis: RedisConfig{
+			Host:     "localhost",
+			Port:     "6379",
+			Password: "",
+			DB:       0,
+		},
+		OTP: OTPConfig{
+			TTL:           "5m",
+			EncryptionKey: os.Getenv("OTP_ENCRYPTION_KEY"),
+		},
 	}
 }
+
 
 // DSN returns Data Source Name string for database connection
 func (c *Config) DSN() string {
