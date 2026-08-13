@@ -18,3 +18,14 @@ jwt:
 log:
   dir: "${LOG_DIR:./logs}"
   level: "${LOG_LEVEL:info}"
+
+redis:
+  host: "${REDIS_HOST:localhost}"
+  port: "${REDIS_PORT:6379}"
+  password: "${REDIS_PASSWORD:}"
+  db: "${REDIS_DB:0}"
+
+otp:
+  ttl: "${OTP_TTL:5m}"
+  encryption_key: "${OTP_ENCRYPTION_KEY:acis_secret_otp_encryption_key_32bytes!!}"
+
