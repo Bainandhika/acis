@@ -12,7 +12,36 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// Init initializes the global logger with file rotation and caller info
+// CommaWriter wraps an io.Writer and appends a comma to every log line written
+type CommaWriter struct {
+	w io.Writer
+}
+
+func NewCommaWriter(w io.Writer) io.Writer {
+	return &CommaWriter{w: w}
+}
+
+func (cw *CommaWriter) Write(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	buf := make([]byte, 0, len(p)+1)
+	if p[len(p)-1] == '\n' {
+		buf = append(buf, p[:len(p)-1]...)
+		buf = append(buf, ',', '\n')
+	} else {
+		buf = append(buf, p...)
+		buf = append(buf, ',')
+	}
+
+	if _, err := cw.w.Write(buf); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// Init initializes the global logger with file rotation, caller info, and trailing comma formatting
 func Init(logDir string) {
 	// Ensure log directory exists
 	os.MkdirAll(logDir, os.ModePerm)
@@ -29,8 +58,9 @@ func Init(logDir string) {
 		Compress:   true, // Compress old logs to .gz
 	}
 
-	// Create a multi-writer: write to both file and console
+	// Create a multi-writer: write to both file and console with trailing comma appending
 	multiWriter := io.MultiWriter(lumberjackLogger, os.Stdout)
+	commaWriter := NewCommaWriter(multiWriter)
 
 	// Use ISO 8601 time format
 	zerolog.TimeFieldFormat = time.RFC3339
@@ -41,7 +71,7 @@ func Init(logDir string) {
 		return short + ":" + strconv.Itoa(line)
 	}
 
-	log.Logger = zerolog.New(multiWriter).
+	log.Logger = zerolog.New(commaWriter).
 		With().
 		Timestamp().
 		Caller().
@@ -49,3 +79,4 @@ func Init(logDir string) {
 
 	log.Info().Msg("Logger initialized successfully with daily rotation")
 }
+
