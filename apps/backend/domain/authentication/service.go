@@ -31,9 +31,13 @@ type authService struct {
 	otpCache   *cache.OTPCache
 	db         *database.AppDB
 	jwtSecret  string
+	otpTTL     time.Duration
 }
 
-func NewService(repo AuthRepository, roleFinder RoleFinder, outboxRepo notification.OutboxRepository, otpCache *cache.OTPCache, db *database.AppDB, jwtSecret string) AuthService {
+func NewService(repo AuthRepository, roleFinder RoleFinder, outboxRepo notification.OutboxRepository, otpCache *cache.OTPCache, db *database.AppDB, jwtSecret string, otpTTL time.Duration) AuthService {
+	if otpTTL <= 0 {
+		otpTTL = 5 * time.Minute
+	}
 	return &authService{
 		repo:       repo,
 		roleFinder: roleFinder,
@@ -41,11 +45,13 @@ func NewService(repo AuthRepository, roleFinder RoleFinder, outboxRepo notificat
 		otpCache:   otpCache,
 		db:         db,
 		jwtSecret:  jwtSecret,
+		otpTTL:     otpTTL,
 	}
 }
 
 func (s *authService) RequestOTP(ctx context.Context, req RequestOTPReq) error {
-	if !s.otpCache.CanRequestOTP(req.Email) {
+	canReq, err := s.otpCache.CanRequestOTP(ctx, req.Email)
+	if err != nil || !canReq {
 		return errors.New("too many OTP requests. Please wait 15 minutes")
 	}
 
@@ -55,7 +61,10 @@ func (s *authService) RequestOTP(ctx context.Context, req RequestOTPReq) error {
 		return errors.New("failed to generate OTP")
 	}
 
-	s.otpCache.StoreOTP(req.Email, otpCode, 5*time.Minute)
+	if err := s.otpCache.StoreOTP(ctx, req.Email, otpCode, s.otpTTL); err != nil {
+		zerolog.Error().Err(err).Msg("Failed to store encrypted OTP in Redis")
+		return errors.New("failed to process OTP request")
+	}
 
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -84,10 +93,11 @@ func (s *authService) RequestOTP(ctx context.Context, req RequestOTPReq) error {
 }
 
 func (s *authService) VerifyOTP(ctx context.Context, req VerifyOTPReq) (*AuthResponse, error) {
-	ok, err := s.otpCache.VerifyOTP(req.Email, req.OTP)
+	ok, err := s.otpCache.VerifyOTP(ctx, req.Email, req.OTP)
 	if err != nil || !ok {
 		return nil, fmt.Errorf("otp verification failed: %w", err)
 	}
+
 
 	user, err := s.repo.FindByEmail(ctx, req.Email)
 	if err != nil {
