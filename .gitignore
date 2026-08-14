@@ -42,3 +42,6 @@ logs/
 
 # Documentation
 plans/
+
+# Config
+*-config.yaml
