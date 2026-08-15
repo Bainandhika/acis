@@ -108,7 +108,7 @@ const handleSubmitWallet = async () => {
 
 // Transaction Modal Handlers
 const openTxModal = () => {
-  if (walletStore.wallets.length > 0) {
+  if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
     newTx.value.wallet_id = walletStore.wallets[0].id
   }
   isTxModalOpen.value = true
@@ -132,7 +132,7 @@ const handleSubmitTx = async () => {
 
 // Proposal Modal Handlers
 const openProposalModal = () => {
-  if (walletStore.wallets.length > 0) {
+  if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
     newProposal.value.wallet_id = walletStore.wallets[0].id
   }
   isProposalModalOpen.value = true
