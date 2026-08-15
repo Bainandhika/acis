@@ -35,9 +35,21 @@ const router = createRouter({
   routes,
 });
 
-// Navigation Guard (Mirip AuthMiddleware di Gin)
-router.beforeEach((to, _from, next) => {
+// Navigation Guard with silent refresh support on initialization
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
+
+  // Try silent refresh once on initial application load if unauthenticated
+  if (!authStore.isInitialized) {
+    authStore.isInitialized = true;
+    if (!authStore.isAuthenticated) {
+      try {
+        await authStore.refreshToken();
+      } catch {
+        // Not authenticated or expired refresh token
+      }
+    }
+  }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'Login' });
