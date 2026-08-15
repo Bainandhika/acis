@@ -3,10 +3,9 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 type TelegramUpdate struct {
@@ -56,7 +55,7 @@ func (h *CommandHandler) ProcessMessage(ctx context.Context, update *TelegramUpd
 			return "Nominal tidak valid.", nil
 		}
 
-		log.Info().Str("wallet", walletName).Float64("amount", amount).Str("desc", desc).Msg("Telegram transaction recorded")
+		slog.Info("Telegram transaction recorded", slog.String("wallet", walletName), slog.Float64("amount", amount), slog.String("desc", desc))
 		return fmt.Sprintf("✅ Catatan tersimpan! Dompet: %s, Nominal: Rp %.2f (%s)", walletName, amount, desc), nil
 
 	case "/saldo":
