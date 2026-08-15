@@ -14,9 +14,12 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateToken creates a new JWT token for the user
-func GenerateToken(userID, role, secret string, expiryHours int) (string, error) {
-	expirationTime := time.Now().Add(time.Duration(expiryHours) * time.Hour)
+// GenerateToken creates a new JWT token for the user with given duration
+func GenerateToken(userID, role, secret string, duration time.Duration) (string, error) {
+	if duration <= 0 {
+		duration = 15 * time.Minute
+	}
+	expirationTime := time.Now().Add(duration)
 	claims := &CustomClaims{
 		UserID: userID,
 		Role:   role,
@@ -29,6 +32,11 @@ func GenerateToken(userID, role, secret string, expiryHours int) (string, error)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secret))
+}
+
+// GenerateAccessToken generates a standard 15-minute access token
+func GenerateAccessToken(userID, role, secret string) (string, error) {
+	return GenerateToken(userID, role, secret, 15*time.Minute)
 }
 
 // ValidateToken parses and validates the JWT token string using the provided secret
