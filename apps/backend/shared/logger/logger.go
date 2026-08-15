@@ -2,42 +2,12 @@ package logger
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
-
-// CommaWriter wraps an io.Writer and appends a comma to every log line written
-type CommaWriter struct {
-	w io.Writer
-}
-
-func NewCommaWriter(w io.Writer) io.Writer {
-	return &CommaWriter{w: w}
-}
-
-func (cw *CommaWriter) Write(p []byte) (n int, err error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	buf := make([]byte, 0, len(p)+1)
-	if p[len(p)-1] == '\n' {
-		buf = append(buf, p[:len(p)-1]...)
-		buf = append(buf, ',', '\n')
-	} else {
-		buf = append(buf, p...)
-		buf = append(buf, ',')
-	}
-
-	if _, err := cw.w.Write(buf); err != nil {
-		return 0, err
-	}
-	return len(p), nil
-}
 
 // Global rotator reference to allow clean closing if needed
 var globalRotator *MonthlyRotator
@@ -58,7 +28,7 @@ func ParseLevel(lvl string) slog.Level {
 	}
 }
 
-// Init initializes the global slog logger with monthly file rotation and trailing comma formatting for JSON-array logs
+// Init initializes the global slog logger with monthly file rotation
 func Init(logDir string, levelStr ...string) {
 	lvl := "info"
 	if len(levelStr) > 0 && levelStr[0] != "" {
@@ -74,7 +44,7 @@ func Init(logDir string, levelStr ...string) {
 	rotator, err := NewMonthlyRotator(logDir, "acis.log")
 	if err != nil {
 		// Fallback to stderr if rotator fails
-		handler := slog.NewJSONHandler(NewCommaWriter(os.Stdout), &slog.HandlerOptions{
+		handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 			Level:     logLevel,
 			AddSource: true,
 		})
@@ -84,10 +54,7 @@ func Init(logDir string, levelStr ...string) {
 	}
 	globalRotator = rotator
 
-	multiWriter := io.MultiWriter(rotator, os.Stdout)
-	commaWriter := NewCommaWriter(multiWriter)
-
-	handler := slog.NewJSONHandler(commaWriter, &slog.HandlerOptions{
+	handler := slog.NewJSONHandler(rotator, &slog.HandlerOptions{
 		Level:     logLevel,
 		AddSource: true,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
@@ -107,7 +74,7 @@ func Init(logDir string, levelStr ...string) {
 
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
-	slog.Info("Logger initialized successfully with monthly rotation and JSON-array format", slog.String("level", lvl))
+	slog.Info("Logger initialized successfully with monthly rotation", slog.String("configured_level", lvl))
 }
 
 // Close flushes and closes active log file

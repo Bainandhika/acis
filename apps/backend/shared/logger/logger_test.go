@@ -10,29 +10,6 @@ import (
 	"time"
 )
 
-func TestCommaWriter(t *testing.T) {
-	var buf bytes.Buffer
-	cw := NewCommaWriter(&buf)
-
-	input := "{" + `"level":"info","message":"test"` + "}\n"
-	n, err := cw.Write([]byte(input))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if n != len(input) {
-		t.Fatalf("expected written count %d, got %d", len(input), n)
-	}
-
-	output := buf.String()
-	expected := "{" + `"level":"info","message":"test"` + "},\n"
-	if output != expected {
-		t.Errorf("expected %q, got %q", expected, output)
-	}
-	if !strings.HasSuffix(output, ",\n") {
-		t.Errorf("expected output to end with comma and newline, got %q", output)
-	}
-}
-
 func TestMonthlyRotator(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "acis_log_test_*")
 	if err != nil {
@@ -85,11 +62,10 @@ func TestMonthlyRotator(t *testing.T) {
 	}
 }
 
-func TestSlogWithCommaWriter(t *testing.T) {
+func TestSlogOutput(t *testing.T) {
 	var buf bytes.Buffer
-	cw := NewCommaWriter(&buf)
 
-	handler := slog.NewJSONHandler(cw, &slog.HandlerOptions{
+	handler := slog.NewJSONHandler(&buf, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})
 	testLogger := slog.New(handler)
@@ -97,8 +73,11 @@ func TestSlogWithCommaWriter(t *testing.T) {
 	testLogger.Info("test message", slog.String("key", "value"))
 
 	output := buf.String()
-	if !strings.HasSuffix(output, ",\n") {
-		t.Errorf("expected output to end with comma and newline, got %q", output)
+	if strings.HasSuffix(output, ",\n") {
+		t.Errorf("expected output not to end with comma, got %q", output)
+	}
+	if !strings.HasSuffix(output, "\n") {
+		t.Errorf("expected output to end with newline, got %q", output)
 	}
 	if !strings.Contains(output, `"msg":"test message"`) {
 		t.Errorf("expected output to contain json message, got %q", output)
