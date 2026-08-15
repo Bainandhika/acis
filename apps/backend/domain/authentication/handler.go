@@ -6,6 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	RefreshTokenCookieName = "refresh_token"
+	AuthCookiePath         = "/api/v1/authentication"
+	RefreshTokenTTLSeconds = 7 * 24 * 3600 // 7 days
+)
+
 type AuthHandler struct {
 	authService  AuthService
 	isProduction bool
@@ -45,15 +51,61 @@ func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("auth_token", resp.Token, 86400, "/", "", h.isProduction, true)
+	// Set rotating refresh token in HttpOnly, Secure, SameSite, path-scoped cookie
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		RefreshTokenCookieName,
+		resp.RefreshToken,
+		RefreshTokenTTLSeconds,
+		AuthCookiePath,
+		"",
+		h.isProduction,
+		true, // HttpOnly
+	)
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	refreshToken, err := c.Cookie(RefreshTokenCookieName)
+	if err != nil || refreshToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token cookie"})
+		return
+	}
+
+	resp, err := h.authService.RefreshToken(c.Request.Context(), refreshToken)
+	if err != nil {
+		// Clear invalid cookie on failure
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie(RefreshTokenCookieName, "", -1, AuthCookiePath, "", h.isProduction, true)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Set new rotated refresh token in cookie
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		RefreshTokenCookieName,
+		resp.RefreshToken,
+		RefreshTokenTTLSeconds,
+		AuthCookiePath,
+		"",
+		h.isProduction,
+		true, // HttpOnly
+	)
 
 	c.JSON(http.StatusOK, resp)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("auth_token", "", -1, "/", "", h.isProduction, true)
+	refreshToken, _ := c.Cookie(RefreshTokenCookieName)
+	if refreshToken != "" {
+		_ = h.authService.Logout(c.Request.Context(), refreshToken)
+	}
+
+	// Clear HttpOnly cookie
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(RefreshTokenCookieName, "", -1, AuthCookiePath, "", h.isProduction, true)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }
 
