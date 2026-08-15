@@ -3,10 +3,9 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
-
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type BotService struct {
@@ -55,11 +54,11 @@ func (s *BotService) handleLink(ctx context.Context, update *TelegramUpdate, par
 	chatID := update.Message.Chat.ID
 	
 	if err := s.familyService.LinkTelegramChatID(ctx, inviteCode, chatID); err != nil {
-		zerolog.Error().Err(err).Int64("chat_id", chatID).Str("invite_code", inviteCode).Msg("Failed to link Telegram chat")
+		slog.Error("Failed to link Telegram chat", slog.Any("error", err), slog.Int64("chat_id", chatID), slog.String("invite_code", inviteCode))
 		return "❌ Gagal menghubungkan Telegram. Pastikan Kode Invite benar.", nil
 	}
 
-	zerolog.Info().Int64("chat_id", chatID).Str("invite_code", inviteCode).Msg("Telegram link command succeeded")
+	slog.Info("Telegram link command succeeded", slog.Int64("chat_id", chatID), slog.String("invite_code", inviteCode))
 	return fmt.Sprintf("✅ Chat Telegram ini berhasil dihubungkan dengan keluarga untuk kode invite `%s`!", inviteCode), nil
 }
 
@@ -122,7 +121,7 @@ func (s *BotService) handleCatat(ctx context.Context, update *TelegramUpdate, pa
 
 	res, err := s.txService.CreateDirectTransaction(ctx, req)
 	if err != nil {
-		zerolog.Error().Err(err).Msg("Failed to process /catat via Telegram")
+		slog.Error("Failed to process /catat via Telegram", slog.Any("error", err))
 		return "❌ Gagal mencatat transaksi: saldo tidak cukup atau kesalahan sistem.", nil
 	}
 
