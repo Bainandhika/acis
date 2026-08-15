@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/notification"
 	"github.com/google/uuid"
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type TransactionService interface {
@@ -221,7 +221,7 @@ func (s *transactionService) ApproveProposal(ctx context.Context, proposalID str
 			"reviewer_id": reviewerID,
 		}
 		if err := s.outboxRepo.EnqueueTx(ctx, tx, "proposal_approved", *proposal.ProposedBy, payload); err != nil {
-			zerolog.Warn().Err(err).Msg("Failed to enqueue proposal approval notification")
+			slog.Warn("Failed to enqueue proposal approval notification", slog.Any("error", err))
 		}
 	}
 
@@ -229,7 +229,7 @@ func (s *transactionService) ApproveProposal(ctx context.Context, proposalID str
 		return errors.New("failed to commit proposal approval")
 	}
 
-	zerolog.Info().Str("proposal_id", proposalID).Str("reviewer_id", reviewerID).Msg("Proposal approved atomically")
+	slog.Info("Proposal approved atomically", slog.String("proposal_id", proposalID), slog.String("reviewer_id", reviewerID))
 	return nil
 }
 
