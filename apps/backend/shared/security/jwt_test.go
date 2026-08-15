@@ -13,7 +13,7 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	role := "admin"
 
 	// 1. Generate Token
-	tokenString, err := GenerateToken(userID, role, secret, 1)
+	tokenString, err := GenerateToken(userID, role, secret, 15*time.Minute)
 	if err != nil {
 		t.Fatalf("Failed to generate token: %v", err)
 	}
