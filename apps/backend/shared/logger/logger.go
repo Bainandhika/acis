@@ -1,15 +1,13 @@
 package logger
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 	"time"
-
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // CommaWriter wraps an io.Writer and appends a comma to every log line written
@@ -41,42 +39,114 @@ func (cw *CommaWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// Init initializes the global logger with file rotation, caller info, and trailing comma formatting
-func Init(logDir string) {
-	// Ensure log directory exists
-	os.MkdirAll(logDir, os.ModePerm)
+// Global rotator reference to allow clean closing if needed
+var globalRotator *MonthlyRotator
 
-	// Log file path
-	logFile := filepath.Join(logDir, "acis.log")
-
-	// Setup Lumberjack for daily log rotation
-	lumberjackLogger := &lumberjack.Logger{
-		Filename:   logFile,
-		MaxSize:    10,   // Megabytes
-		MaxBackups: 30,   // Keep 30 backups
-		MaxAge:     30,   // Days
-		Compress:   true, // Compress old logs to .gz
+// ParseLevel converts a string log level to slog.Level
+func ParseLevel(lvl string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(lvl)) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
 	}
-
-	// Create a multi-writer: write to both file and console with trailing comma appending
-	multiWriter := io.MultiWriter(lumberjackLogger, os.Stdout)
-	commaWriter := NewCommaWriter(multiWriter)
-
-	// Use ISO 8601 time format
-	zerolog.TimeFieldFormat = time.RFC3339
-
-	// Setup Caller info
-	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
-		short := filepath.Base(file)
-		return short + ":" + strconv.Itoa(line)
-	}
-
-	log.Logger = zerolog.New(commaWriter).
-		With().
-		Timestamp().
-		Caller().
-		Logger()
-
-	log.Info().Msg("Logger initialized successfully with daily rotation")
 }
 
+// Init initializes the global slog logger with monthly file rotation and trailing comma formatting for JSON-array logs
+func Init(logDir string, levelStr ...string) {
+	lvl := "info"
+	if len(levelStr) > 0 && levelStr[0] != "" {
+		lvl = levelStr[0]
+	}
+	logLevel := ParseLevel(lvl)
+
+	if logDir == "" {
+		logDir = "./logs"
+	}
+	_ = os.MkdirAll(logDir, 0755)
+
+	rotator, err := NewMonthlyRotator(logDir, "acis.log")
+	if err != nil {
+		// Fallback to stderr if rotator fails
+		handler := slog.NewJSONHandler(NewCommaWriter(os.Stdout), &slog.HandlerOptions{
+			Level:     logLevel,
+			AddSource: true,
+		})
+		slog.SetDefault(slog.New(handler))
+		slog.Error("Failed to initialize monthly log rotator, logging to stdout only", slog.Any("error", err))
+		return
+	}
+	globalRotator = rotator
+
+	multiWriter := io.MultiWriter(rotator, os.Stdout)
+	commaWriter := NewCommaWriter(multiWriter)
+
+	handler := slog.NewJSONHandler(commaWriter, &slog.HandlerOptions{
+		Level:     logLevel,
+		AddSource: true,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				if t, ok := a.Value.Any().(time.Time); ok {
+					return slog.String(slog.TimeKey, t.Format(time.RFC3339))
+				}
+			}
+			if a.Key == slog.SourceKey {
+				if src, ok := a.Value.Any().(*slog.Source); ok && src != nil {
+					src.File = filepath.Base(src.File)
+				}
+			}
+			return a
+		},
+	})
+
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+	slog.Info("Logger initialized successfully with monthly rotation and JSON-array format", slog.String("level", lvl))
+}
+
+// Close flushes and closes active log file
+func Close() error {
+	if globalRotator != nil {
+		return globalRotator.Close()
+	}
+	return nil
+}
+
+// Helper wrapper functions
+func Debug(msg string, args ...any) {
+	slog.Default().Debug(msg, args...)
+}
+
+func Info(msg string, args ...any) {
+	slog.Default().Info(msg, args...)
+}
+
+func Warn(msg string, args ...any) {
+	slog.Default().Warn(msg, args...)
+}
+
+func Error(msg string, args ...any) {
+	slog.Default().Error(msg, args...)
+}
+
+func DebugContext(ctx context.Context, msg string, args ...any) {
+	slog.Default().DebugContext(ctx, msg, args...)
+}
+
+func InfoContext(ctx context.Context, msg string, args ...any) {
+	slog.Default().InfoContext(ctx, msg, args...)
+}
+
+func WarnContext(ctx context.Context, msg string, args ...any) {
+	slog.Default().WarnContext(ctx, msg, args...)
+}
+
+func ErrorContext(ctx context.Context, msg string, args ...any) {
+	slog.Default().ErrorContext(ctx, msg, args...)
+}
