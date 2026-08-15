@@ -92,6 +92,8 @@ func (s *authService) RequestOTP(ctx context.Context, req RequestOTPReq) error {
 		return errors.New("failed to commit transaction")
 	}
 
+	_ = s.outboxRepo.PublishSignal(ctx)
+
 	slog.Info("OTP requested & enqueued to outbox", slog.String("email", req.Email))
 	return nil
 }

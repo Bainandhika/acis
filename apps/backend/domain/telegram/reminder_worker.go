@@ -88,6 +88,7 @@ func (w *LowBalanceWorker) checkAndEnqueueReminders(ctx context.Context) {
 	if err := tx.Commit(); err != nil {
 		slog.Error("Failed to commit low-balance alert outbox transaction", slog.Any("error", err))
 	} else {
+		_ = w.outboxRepo.PublishSignal(ctx)
 		slog.Info("Low-balance outbox alerts enqueued successfully", slog.Int("alerts_enqueued", len(wallets)))
 	}
 }

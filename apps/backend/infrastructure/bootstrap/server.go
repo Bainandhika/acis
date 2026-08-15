@@ -85,12 +85,12 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 
 
 func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
-	// Outbox Repository & Worker Pool Setup
-	outboxRepo := notification.NewOutboxRepository(s.db)
+	// Outbox Repository & Worker Pool Setup (Hybrid Redis Pub/Sub + Postgres Outbox)
+	outboxRepo := notification.NewOutboxRepository(s.db, s.redisClient)
 	s.workerPool = worker.NewWorkerPool(outboxRepo, 3, 100)
 	s.workerPool.Start(context.Background())
 
-	s.poller = worker.NewOutboxPoller(outboxRepo, s.workerPool, 2*time.Second, 20)
+	s.poller = worker.NewOutboxPoller(outboxRepo, s.workerPool, 1*time.Minute, 20, s.redisClient)
 	s.poller.Start(context.Background())
 
 	// Telegram & Resend Client Setup

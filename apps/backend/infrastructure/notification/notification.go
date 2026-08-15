@@ -5,10 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
+	"github.com/redis/go-redis/v9"
 )
+
+const OutboxNotifyChannel = "outbox:notify"
 
 type DBExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
@@ -33,14 +37,34 @@ type OutboxRepository interface {
 	FetchAndLockPending(ctx context.Context, limit int) ([]NotificationJob, error)
 	MarkSent(ctx context.Context, id string) error
 	MarkFailed(ctx context.Context, id string, errMsg string) error
+	PublishSignal(ctx context.Context) error
 }
 
 type outboxRepository struct {
-	db *database.AppDB
+	db          *database.AppDB
+	redisClient *redis.Client
 }
 
-func NewOutboxRepository(db *database.AppDB) OutboxRepository {
-	return &outboxRepository{db: db}
+func NewOutboxRepository(db *database.AppDB, redisClient ...*redis.Client) OutboxRepository {
+	var rClient *redis.Client
+	if len(redisClient) > 0 {
+		rClient = redisClient[0]
+	}
+	return &outboxRepository{
+		db:          db,
+		redisClient: rClient,
+	}
+}
+
+func (r *outboxRepository) PublishSignal(ctx context.Context) error {
+	if r.redisClient == nil {
+		return nil
+	}
+	if err := r.redisClient.Publish(ctx, OutboxNotifyChannel, "1").Err(); err != nil {
+		slog.Warn("Failed to publish outbox notification signal to Redis", slog.Any("error", err))
+		return err
+	}
+	return nil
 }
 
 func (r *outboxRepository) EnqueueTx(ctx context.Context, exec DBExecutor, channel, recipient string, payload interface{}) error {

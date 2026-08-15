@@ -229,6 +229,10 @@ func (s *transactionService) ApproveProposal(ctx context.Context, proposalID str
 		return errors.New("failed to commit proposal approval")
 	}
 
+	if s.outboxRepo != nil {
+		_ = s.outboxRepo.PublishSignal(ctx)
+	}
+
 	slog.Info("Proposal approved atomically", slog.String("proposal_id", proposalID), slog.String("reviewer_id", reviewerID))
 	return nil
 }

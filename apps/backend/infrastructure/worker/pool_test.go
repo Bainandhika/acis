@@ -36,6 +36,11 @@ func (m *MockOutboxRepository) MarkFailed(ctx context.Context, id string, errMsg
 	return args.Error(0)
 }
 
+func (m *MockOutboxRepository) PublishSignal(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 func TestWorkerPool_SuccessJob(t *testing.T) {
 	mockRepo := new(MockOutboxRepository)
 	pool := worker.NewWorkerPool(mockRepo, 2, 10)
