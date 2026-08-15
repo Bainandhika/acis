@@ -10,11 +10,12 @@ import (
 )
 
 func main() {
-	// 1. Initialize Global Logger
-	logger.Init("./logs")
-
-	// 2. Load Modular Configuration (acis-config.yaml + .env secrets)
+	// 1. Load Modular Configuration (acis-config.yaml + .env secrets)
 	cfg := config.Load("acis-config.yaml")
+
+	// 2. Initialize Global Logger with YAML log level & monthly rotation
+	logger.Init(cfg.Log.Dir, cfg.Log.Level)
+	defer logger.Close()
 
 	// 3. Initialize Database Connection Pool
 	db, err := database.NewConnection(cfg.DSN())
