@@ -5,11 +5,11 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/google/uuid"
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type FamilyService interface {
@@ -247,7 +247,7 @@ func (s *familyService) CreateWallet(ctx context.Context, userID, familyID strin
 	}
 
 	if err := s.repo.CreateWallet(ctx, wallet); err != nil {
-		zerolog.Error().Err(err).Msg("Failed to create wallet")
+		slog.Error("Failed to create wallet", slog.Any("error", err))
 		return nil, errors.New("failed to create wallet")
 	}
 
