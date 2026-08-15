@@ -5,10 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
-
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type ResendSender struct {
@@ -27,7 +26,7 @@ func NewResendSender(apiKey string) *ResendSender {
 
 func (s *ResendSender) SendOTP(ctx context.Context, email, code string) error {
 	if s.apiKey == "" {
-		zerolog.Warn().Str("recipient", email).Msg("RESEND_API_KEY not configured, skipping real email dispatch")
+		slog.Warn("RESEND_API_KEY not configured, skipping real email dispatch", slog.String("recipient", email))
 		return nil
 	}
 
