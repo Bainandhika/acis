@@ -20,7 +20,7 @@ const handleCreate = async () => {
   try {
     await familyStore.handleCreateFamily(familyName.value.trim(), monthlyIncome.value || 0)
     router.push('/')
-  } catch (err: any) {
+  } catch {
     errorMessage.value = familyStore.error || 'Gagal membuat keluarga.'
   } finally {
     loading.value = false
@@ -34,7 +34,7 @@ const handleJoin = async () => {
   try {
     await familyStore.handleJoinFamily(inviteCode.value.trim().toUpperCase())
     router.push('/')
-  } catch (err: any) {
+  } catch {
     errorMessage.value = familyStore.error || 'Kode invite tidak valid.'
   } finally {
     loading.value = false
@@ -43,90 +43,105 @@ const handleJoin = async () => {
 </script>
 
 <template>
-  <div class="flex items-center justify-center min-h-screen bg-base-200 p-4">
-    <div class="card w-full max-w-md bg-base-100 shadow-xl">
-      <div class="card-body">
-        <h2 class="card-title justify-center text-2xl font-bold mb-2">
-          Setup Keluarga ACIS 🏠
+  <div class="flex items-center justify-center min-h-screen bg-[#F8FAFC] p-4 relative overflow-hidden">
+    <!-- Ambient glow circles -->
+    <div class="absolute top-1/4 right-1/4 w-96 h-96 bg-brand-200/40 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute bottom-1/4 left-1/4 w-80 h-80 bg-lime-200/30 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="card-neo w-full max-w-md p-8 relative z-10 border border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-xl">
+      <!-- Header -->
+      <div class="flex flex-col items-center text-center mb-6">
+        <div class="w-14 h-14 rounded-3xl bg-gradient-to-tr from-brand-500 to-lime-300 flex items-center justify-center shadow-lg shadow-brand-500/30 text-white font-black text-2xl mb-4">
+          🏠
+        </div>
+        <h2 class="text-2xl font-black text-slate-900 tracking-tight">
+          Setup Grup Keluarga
         </h2>
-        <p class="text-sm text-center text-gray-500 mb-4">
-          Buat grup keluarga baru atau bergabung dengan keluarga yang sudah ada.
+        <p class="text-xs text-slate-400 font-medium mt-1">
+          Buat grup keluarga baru atau bergabung via kode undangan
         </p>
+      </div>
 
-        <div v-if="errorMessage" class="alert alert-error text-sm py-2 shadow-lg mb-4">
-          <span>{{ errorMessage }}</span>
+      <!-- Error Alert -->
+      <div v-if="errorMessage" class="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl mb-6 font-semibold flex items-center gap-2">
+        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>{{ errorMessage }}</span>
+      </div>
+
+      <!-- Custom Segmented Tabs -->
+      <div class="flex p-1 bg-slate-100 rounded-2xl mb-6 text-xs font-extrabold">
+        <button 
+          class="flex-1 py-2.5 rounded-xl transition-all"
+          :class="activeTab === 'create' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+          @click="activeTab = 'create'"
+        >
+          Buat Keluarga
+        </button>
+        <button 
+          class="flex-1 py-2.5 rounded-xl transition-all"
+          :class="activeTab === 'join' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+          @click="activeTab = 'join'"
+        >
+          Gabung Keluarga
+        </button>
+      </div>
+
+      <!-- Tab 1: Create Family -->
+      <div v-if="activeTab === 'create'" class="flex flex-col gap-4">
+        <div>
+          <label class="text-xs font-bold text-slate-700 block mb-1.5">Nama Keluarga</label>
+          <input 
+            type="text" 
+            v-model="familyName" 
+            placeholder="Contoh: Keluarga Pratama" 
+            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
+          />
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-700 block mb-1.5">Estimasi Pendapatan Bulanan (Rp)</label>
+          <input 
+            type="number" 
+            v-model.number="monthlyIncome" 
+            placeholder="15000000" 
+            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
+          />
+          <p class="text-[10px] text-slate-400 mt-1">Digunakan untuk acuan batas limit & alokasi amplop.</p>
         </div>
 
-        <div class="tabs tabs-boxed mb-6 justify-center">
-          <a 
-            class="tab" 
-            :class="{ 'tab-active': activeTab === 'create' }"
-            @click="activeTab = 'create'"
-          >
-            Buat Keluarga
-          </a>
-          <a 
-            class="tab" 
-            :class="{ 'tab-active': activeTab === 'join' }"
-            @click="activeTab = 'join'"
-          >
-            Gabung Keluarga
-          </a>
+        <button 
+          class="w-full py-3.5 mt-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition shadow-md active:scale-95 disabled:opacity-50"
+          :disabled="loading || !familyName.trim()"
+          @click="handleCreate"
+        >
+          {{ loading ? 'Memproses...' : 'Buat Grup Keluarga' }}
+        </button>
+      </div>
+
+      <!-- Tab 2: Join Family -->
+      <div v-else class="flex flex-col gap-4">
+        <div>
+          <label class="text-xs font-bold text-slate-700 block mb-1.5 text-center">Kode Invite (6 Karakter)</label>
+          <input 
+            type="text" 
+            v-model="inviteCode" 
+            placeholder="Contoh: AB12CD" 
+            maxlength="6"
+            class="w-full py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-center text-2xl font-black tracking-[0.3em] uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition font-mono" 
+          />
+          <p class="text-[10px] text-slate-400 text-center mt-1.5">Minta kode invite 6 karakter ke Admin keluarga Anda.</p>
         </div>
 
-        <!-- Tab 1: Create Family -->
-        <div v-if="activeTab === 'create'">
-          <div class="form-control w-full mb-3">
-            <label class="label"><span class="label-text">Nama Keluarga</span></label>
-            <input 
-              type="text" 
-              v-model="familyName" 
-              placeholder="Contoh: Keluarga Cemara" 
-              class="input input-bordered w-full" 
-            />
-          </div>
-          <div class="form-control w-full mb-3">
-            <label class="label"><span class="label-text">Estimasi Pendapatan Bulanan (Rp)</span></label>
-            <input 
-              type="number" 
-              v-model.number="monthlyIncome" 
-              placeholder="10000000" 
-              class="input input-bordered w-full" 
-            />
-          </div>
-          <div class="card-actions justify-end mt-6">
-            <button 
-              class="btn btn-primary w-full" 
-              :disabled="loading || !familyName.trim()"
-              @click="handleCreate"
-            >
-              {{ loading ? 'Memproses...' : 'Buat Sekarang' }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Tab 2: Join Family -->
-        <div v-else>
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Kode Invite (6 Karakter)</span></label>
-            <input 
-              type="text" 
-              v-model="inviteCode" 
-              placeholder="Contoh: AB12CD" 
-              maxlength="6"
-              class="input input-bordered w-full text-center text-xl tracking-widest uppercase" 
-            />
-          </div>
-          <div class="card-actions justify-end mt-6">
-            <button 
-              class="btn btn-primary w-full" 
-              :disabled="loading || inviteCode.trim().length !== 6"
-              @click="handleJoin"
-            >
-              {{ loading ? 'Memproses...' : 'Gabung Keluarga' }}
-            </button>
-          </div>
-        </div>
+        <button 
+          class="w-full py-3.5 mt-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition shadow-md active:scale-95 disabled:opacity-50"
+          :disabled="loading || inviteCode.trim().length !== 6"
+          @click="handleJoin"
+        >
+          {{ loading ? 'Memproses...' : 'Gabung ke Keluarga' }}
+        </button>
       </div>
     </div>
   </div>
