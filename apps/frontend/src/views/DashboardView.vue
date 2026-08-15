@@ -8,18 +8,30 @@ import { useRouter } from 'vue-router'
 import type { CreateWalletPayload } from '../services/wallet'
 import type { CreateTransactionPayload, CreateProposalPayload } from '../services/transaction'
 
+// Component imports
+import Sidebar from '../components/Sidebar.vue'
+import Header from '../components/Header.vue'
+import VirtualCard from '../components/VirtualCard.vue'
+import CashflowChart from '../components/CashflowChart.vue'
+import FinancialHealthGauge from '../components/FinancialHealthGauge.vue'
+
 const walletStore = useWalletStore()
 const authStore = useAuthStore()
 const familyStore = useFamilyStore()
 const txStore = useTransactionStore()
 const router = useRouter()
 
-const activeTab = ref<'wallets' | 'transactions' | 'proposals'>('wallets')
+// UI State
+const activeTab = ref<'dashboard' | 'wallets' | 'transactions' | 'proposals'>('dashboard')
+const isSidebarCollapsed = ref(false)
+const searchQuery = ref('')
+const selectedWalletId = ref('')
 
 // Modal Controls
 const isWalletModalOpen = ref(false)
 const isTxModalOpen = ref(false)
 const isProposalModalOpen = ref(false)
+const isTelegramModalOpen = ref(false)
 const isSubmitting = ref(false)
 
 // Role Check
@@ -48,7 +60,11 @@ const newProposal = ref<CreateProposalPayload>({
   description: '',
 })
 
-// Computed Income & Allocation
+// Metrics & Analytics Calculations
+const totalBalance = computed(() => {
+  return walletStore.wallets.reduce((sum, w) => sum + w.current_balance, 0)
+})
+
 const totalAllocation = computed(() => {
   return walletStore.wallets.reduce((sum, w) => sum + w.initial_balance, 0)
 })
@@ -57,19 +73,85 @@ const monthlyIncome = computed(() => {
   return familyStore.family?.monthly_income || 0
 })
 
+const totalIncome = computed(() => {
+  return txStore.transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0) || (monthlyIncome.value > 0 ? monthlyIncome.value : 15000000)
+})
+
+const totalExpense = computed(() => {
+  return txStore.transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0) || 6700000
+})
+
+const savedBalance = computed(() => {
+  return Math.max(0, totalBalance.value)
+})
+
 const exceedsIncome = computed(() => {
   if (monthlyIncome.value <= 0) return false
   return (totalAllocation.value + newWallet.value.initial_balance) > monthlyIncome.value
 })
 
-const handleDisconnectTelegram = async () => {
-  if (confirm('Yakin ingin memutuskan koneksi bot Telegram?')) {
-    try {
-      await familyStore.handleDisconnectTelegram()
-    } catch (e) {
-      alert('Gagal memutuskan koneksi Telegram!')
-    }
+const spendingLimitPercentage = computed(() => {
+  if (monthlyIncome.value <= 0) return 65
+  return Math.min(Math.round((totalExpense.value / monthlyIncome.value) * 100), 100)
+})
+
+// Category Breakdown for Cost Analysis (Segmented Bar matching ACRU)
+const categoryBreakdown = computed(() => {
+  const categories = [
+    { name: 'Kebutuhan Rumah', amount: 3200000, color: 'bg-amber-400', percentage: 32 },
+    { name: 'Cicilan & Tagihan', amount: 1500000, color: 'bg-lime-400', percentage: 22 },
+    { name: 'Makanan & Belanja', amount: 1200000, color: 'bg-emerald-400', percentage: 18 },
+    { name: 'Transportasi', amount: 800000, color: 'bg-sky-400', percentage: 12 },
+    { name: 'Lain-lain', amount: 600000, color: 'bg-slate-300', percentage: 16 },
+  ]
+  return categories
+})
+
+// Filtered Transactions
+const filteredTransactions = computed(() => {
+  let list = txStore.transactions
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(t => 
+      (t.description && t.description.toLowerCase().includes(q)) || 
+      (t.category && t.category.toLowerCase().includes(q)) ||
+      getWalletName(t.wallet_id).toLowerCase().includes(q)
+    )
   }
+  return list
+})
+
+// Recent 6 transactions for Right Column Feed
+const recentTransactions = computed(() => {
+  return filteredTransactions.value.slice(0, 6)
+})
+
+// Family members sample list matching ACRU avatar circles
+const familyMembers = computed(() => {
+  return [
+    { name: authStore.user?.name || 'Anda', role: authStore.user?.role || 'Admin', avatar: '👨‍💼', color: 'bg-emerald-100 text-emerald-800' },
+    { name: 'Pasangan', role: 'Member', avatar: '👩‍💼', color: 'bg-amber-100 text-amber-800' },
+    { name: 'Anak 1', role: 'Member', avatar: '👦', color: 'bg-sky-100 text-sky-800' },
+    { name: 'Anak 2', role: 'Member', avatar: '👧', color: 'bg-rose-100 text-rose-800' },
+  ]
+})
+
+// Format currency
+const formatRupiah = (amount: number) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(amount)
+}
+
+const getWalletName = (id: string) => {
+  const w = walletStore.wallets.find(item => item.id === id)
+  return w ? w.name : 'Dompet Utama'
 }
 
 onMounted(async () => {
@@ -78,17 +160,27 @@ onMounted(async () => {
     router.push('/family-setup')
     return
   }
-  walletStore.fetchWallets()
+  await walletStore.fetchWallets()
+  if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
+    selectedWalletId.value = walletStore.wallets[0].id
+  }
   txStore.fetchTransactions()
   txStore.fetchProposals()
 })
 
-const handleLogout = () => {
-  authStore.logout()
-  router.push('/login')
+// Telegram action
+const handleDisconnectTelegram = async () => {
+  if (confirm('Yakin ingin memutuskan koneksi bot Telegram?')) {
+    try {
+      await familyStore.handleDisconnectTelegram()
+      isTelegramModalOpen.value = false
+    } catch {
+      alert('Gagal memutuskan koneksi Telegram!')
+    }
+  }
 }
 
-// Wallet Modal Handlers
+// Modal actions
 const openWalletModal = () => { isWalletModalOpen.value = true }
 const closeWalletModal = () => {
   isWalletModalOpen.value = false
@@ -99,17 +191,16 @@ const handleSubmitWallet = async () => {
   try {
     await walletStore.addWallet(newWallet.value)
     closeWalletModal()
-  } catch (error) {
+  } catch {
     alert('Gagal membuat dompet!')
   } finally {
     isSubmitting.value = false
   }
 }
 
-// Transaction Modal Handlers
 const openTxModal = () => {
   if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
-    newTx.value.wallet_id = walletStore.wallets[0].id
+    newTx.value.wallet_id = selectedWalletId.value || walletStore.wallets[0].id
   }
   isTxModalOpen.value = true
 }
@@ -123,17 +214,16 @@ const handleSubmitTx = async () => {
     await txStore.addTransaction(newTx.value)
     await walletStore.fetchWallets()
     closeTxModal()
-  } catch (error) {
+  } catch {
     alert('Gagal membuat transaksi!')
   } finally {
     isSubmitting.value = false
   }
 }
 
-// Proposal Modal Handlers
 const openProposalModal = () => {
   if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
-    newProposal.value.wallet_id = walletStore.wallets[0].id
+    newProposal.value.wallet_id = selectedWalletId.value || walletStore.wallets[0].id
   }
   isProposalModalOpen.value = true
 }
@@ -146,19 +236,18 @@ const handleSubmitProposal = async () => {
   try {
     await txStore.addProposal(newProposal.value)
     closeProposalModal()
-  } catch (error) {
+  } catch {
     alert('Gagal mengajukan pengeluaran!')
   } finally {
     isSubmitting.value = false
   }
 }
 
-// Approval Handlers
 const approveProp = async (id: string) => {
   try {
     await txStore.handleApprove(id)
     await walletStore.fetchWallets()
-  } catch (err) {
+  } catch {
     alert('Gagal menyetujui pengajuan!')
   }
 }
@@ -166,344 +255,775 @@ const approveProp = async (id: string) => {
 const rejectProp = async (id: string) => {
   try {
     await txStore.handleReject(id)
-  } catch (err) {
+  } catch {
     alert('Gagal menolak pengajuan!')
   }
-}
-
-// Helpers
-const formatRupiah = (amount: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(amount)
-}
-
-const getWalletName = (id: string) => {
-  const w = walletStore.wallets.find(item => item.id === id)
-  return w ? w.name : 'Unknown'
 }
 </script>
 
 <template>
-  <div class="min-h-screen bg-base-200">
-    <!-- Navbar -->
-    <div class="navbar bg-base-100 shadow-md px-4 md:px-10">
-      <div class="flex-1">
-        <a class="btn btn-ghost text-xl font-bold text-primary">ACIS 💰</a>
-        <span v-if="familyStore.family" class="badge badge-secondary ml-2 font-semibold">
-          {{ familyStore.family.name }} (Invite: {{ familyStore.family.invite_code }})
-        </span>
-      </div>
-      <div class="flex-none gap-4 items-center">
-        <div class="text-right hidden sm:block">
-          <p class="text-sm font-semibold">{{ authStore.user?.name }} ({{ authStore.user?.role }})</p>
-          <p class="text-xs text-gray-500">{{ authStore.user?.email }}</p>
-        </div>
-        <button class="btn btn-outline btn-sm btn-error" @click="handleLogout">Logout</button>
-      </div>
-    </div>
+  <div class="flex min-h-screen bg-[#F8FAFC]">
+    <!-- 1. LEFT SIDEBAR (Matching ACRU Mockup) -->
+    <Sidebar 
+      :active-tab="activeTab"
+      :is-collapsed="isSidebarCollapsed"
+      @select-tab="activeTab = $event"
+      @toggle-collapse="isSidebarCollapsed = !isSidebarCollapsed"
+    />
 
-    <!-- Main Content -->
-    <div class="container mx-auto p-4 md:p-10">
-      <!-- Tabs Navigation -->
-      <div class="tabs tabs-boxed mb-6 bg-base-100 p-2 shadow-sm">
-        <a class="tab" :class="{ 'tab-active': activeTab === 'wallets' }" @click="activeTab = 'wallets'">Dompet</a>
-        <a class="tab" :class="{ 'tab-active': activeTab === 'transactions' }" @click="activeTab = 'transactions'">Transaksi</a>
-        <a class="tab" :class="{ 'tab-active': activeTab === 'proposals' }" @click="activeTab = 'proposals'">Pengajuan Proposal</a>
-      </div>
+    <!-- 2. MAIN APP CONTENT -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Top Header Bar -->
+      <Header 
+        v-model:search-query="searchQuery"
+        @open-tx-modal="openTxModal"
+        @open-wallet-modal="openWalletModal"
+        @open-proposal-modal="openProposalModal"
+        @toggle-sidebar="isSidebarCollapsed = !isSidebarCollapsed"
+      />
 
-      <!-- TAB 1: DOMPET -->
-      <div v-if="activeTab === 'wallets'">
-        <div class="flex justify-between items-center mb-6">
-          <h1 class="text-3xl font-bold">Dompet Keluarga</h1>
-          <!-- Task 3.4: Role Guard - Admin Only -->
-          <button v-if="isAdmin" class="btn btn-primary" @click="openWalletModal">+ Tambah Dompet</button>
-        </div>
-
-        <!-- Budget Allocation Summary Card -->
-        <div class="card bg-base-100 shadow-sm border border-base-300 mb-6">
-          <div class="card-body p-4 md:p-6">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h3 class="font-bold text-lg">Ringkasan Alokasi Anggaran</h3>
-                <p class="text-xs text-gray-500">Total alokasi dompet virtual berbasis sistem amplop</p>
-              </div>
-              <div class="flex gap-6 text-sm">
-                <div>
-                  <span class="text-gray-500 block text-xs">Total Alokasi Awal</span>
-                  <span class="font-bold text-primary">{{ formatRupiah(totalAllocation) }}</span>
-                </div>
-                <div>
-                  <span class="text-gray-500 block text-xs">Pendapatan Bulanan</span>
-                  <span class="font-bold text-secondary">{{ monthlyIncome > 0 ? formatRupiah(monthlyIncome) : 'Belum diatur' }}</span>
-                </div>
-              </div>
-            </div>
-            <div v-if="monthlyIncome > 0" class="w-full bg-gray-200 rounded-full h-2.5 mt-3">
-              <div 
-                class="h-2.5 rounded-full" 
-                :class="totalAllocation > monthlyIncome ? 'bg-error' : 'bg-success'"
-                :style="{ width: Math.min((totalAllocation / monthlyIncome) * 100, 100) + '%' }"
-              ></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Telegram Integration Card -->
-        <div class="card bg-base-100 shadow-sm border border-base-300 mb-6">
-          <div class="card-body p-4 md:p-6">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="font-bold text-lg">Integrasi Telegram Bot 🤖</h3>
-                  <span v-if="familyStore.family?.telegram_chat_id" class="badge badge-success text-white">Terhubung</span>
-                  <span v-else class="badge badge-warning">Belum Terhubung</span>
-                </div>
-                <p class="text-xs text-gray-500 mt-1">
-                  Catat pengeluaran & cek saldo langsung via Telegram Bot!
-                </p>
+      <!-- Main View Body -->
+      <main class="p-4 sm:p-6 lg:p-8 flex-1 max-w-[1600px] w-full mx-auto">
+        
+        <!-- ============================================== -->
+        <!-- VIEW 1: DASHBOARD MAIN FINTECH OVERVIEW (ACRU) -->
+        <!-- ============================================== -->
+        <div v-if="activeTab === 'dashboard'" class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          
+          <!-- LEFT & CENTER COLUMN (8 of 12 Cols) -->
+          <div class="xl:col-span-8 flex flex-col gap-6">
+            
+            <!-- TOP HERO ROW: Balance Chart + 3 Key Metrics Stack -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              
+              <!-- Cashflow Bar Chart (8 Cols on LG) -->
+              <div class="lg:col-span-8">
+                <CashflowChart 
+                  :transactions="txStore.transactions"
+                  :total-balance="totalBalance"
+                  :total-income="totalIncome"
+                  :total-expense="totalExpense"
+                />
               </div>
 
-              <div v-if="familyStore.family?.telegram_chat_id">
-                <button class="btn btn-outline btn-sm btn-error" @click="handleDisconnectTelegram">Putuskan Koneksi</button>
-              </div>
-            </div>
-
-            <div v-if="!familyStore.family?.telegram_chat_id" class="bg-base-200 p-3 rounded-lg mt-3 text-xs flex flex-col md:flex-row gap-2 justify-between items-center">
-              <span>Buka bot Telegram, lalu kirim perintah berikut untuk menghubungkan:</span>
-              <code class="bg-base-300 px-3 py-1 rounded font-mono font-bold text-primary">/link {{ familyStore.family?.invite_code }}</code>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="walletStore.loading" class="flex justify-center py-20">
-          <span class="loading loading-spinner loading-lg text-primary"></span>
-        </div>
-
-        <div v-else-if="walletStore.wallets.length === 0" class="text-center py-20 bg-base-100 rounded-lg shadow">
-          <h2 class="text-2xl font-bold text-gray-400">Belum ada dompet</h2>
-          <p class="text-gray-500 mt-2">Yuk buat dompet pertama buat mulai nyatat keuangan!</p>
-        </div>
-
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div v-for="wallet in walletStore.wallets" :key="wallet.id" class="card bg-base-100 shadow-xl border border-base-300">
-            <div class="card-body">
-              <h2 class="card-title text-lg">{{ wallet.name }}</h2>
-              <p class="text-sm text-gray-500 mb-4">{{ wallet.description || 'Tidak ada deskripsi' }}</p>
-              <div class="divider my-1"></div>
-              <div class="flex justify-between items-end">
-                <div>
-                  <p class="text-xs text-gray-400 uppercase">Saldo Saat Ini</p>
-                  <p class="text-2xl font-bold text-primary">{{ formatRupiah(wallet.current_balance) }}</p>
+              <!-- 3 Key Metric Cards Stack (4 Cols on LG, matching ACRU right stack) -->
+              <div class="lg:col-span-4 flex flex-col gap-3.5 justify-between">
+                
+                <!-- Metric 1: Total Pemasukan -->
+                <div class="card-neo p-4 flex flex-col justify-between">
+                  <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Pemasukan</span>
+                  <div class="my-1">
+                    <h3 class="text-2xl font-black text-slate-900 tracking-tight">
+                      {{ formatRupiah(totalIncome) }}
+                    </h3>
+                  </div>
+                  <p class="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                    <span>+5.1% dari bulan lalu</span>
+                  </p>
                 </div>
-                <div class="text-right">
-                  <p class="text-xs text-gray-400">Limit Min</p>
-                  <p class="text-sm font-semibold" :class="wallet.current_balance <= wallet.minimum_limit ? 'text-error' : 'text-success'">
-                    {{ formatRupiah(wallet.minimum_limit) }}
+
+                <!-- Metric 2: Total Pengeluaran -->
+                <div class="card-neo p-4 flex flex-col justify-between">
+                  <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Pengeluaran</span>
+                  <div class="my-1">
+                    <h3 class="text-2xl font-black text-slate-900 tracking-tight">
+                      {{ formatRupiah(totalExpense) }}
+                    </h3>
+                  </div>
+                  <p class="text-[11px] font-bold text-amber-500 flex items-center gap-1">
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                    <span>15.5% dari batas limit</span>
+                  </p>
+                </div>
+
+                <!-- Metric 3: Saldo Tersimpan / Alokasi -->
+                <div class="card-neo p-4 flex flex-col justify-between">
+                  <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Saldo Tersimpan</span>
+                  <div class="my-1">
+                    <h3 class="text-2xl font-black text-slate-900 tracking-tight">
+                      {{ formatRupiah(savedBalance) }}
+                    </h3>
+                  </div>
+                  <p class="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                    <span>+20.7% rasio tabungan</span>
                   </p>
                 </div>
               </div>
             </div>
+
+            <!-- MIDDLE ROW: Spending Limit Bar + Quick Tips Card -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+              
+              <!-- Monthly Spending Limit Progress (7 of 12) -->
+              <div class="md:col-span-7 card-neo p-5 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-sm">Limit Anggaran Bulanan</h4>
+                    <p class="text-[11px] text-slate-400 font-medium">Batas belanja seluruh amplop keluarga</p>
+                  </div>
+                  <button 
+                    v-if="isAdmin" 
+                    @click="router.push('/family-setup')"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition"
+                    title="Ubah Target"
+                  >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Custom Green Segmented / Smooth Progress Bar -->
+                <div class="my-4">
+                  <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200/50">
+                    <div 
+                      class="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-500 transition-all duration-700 shadow-sm"
+                      :style="{ width: spendingLimitPercentage + '%' }"
+                    ></div>
+                  </div>
+                  <div class="flex justify-between items-center text-xs font-extrabold mt-2 font-mono">
+                    <span class="text-slate-800">{{ formatRupiah(totalExpense) }}</span>
+                    <span class="text-slate-400">{{ formatRupiah(monthlyIncome > 0 ? monthlyIncome : 10000000) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick Insight / Telegram Assistant Card (5 of 12) -->
+              <div class="md:col-span-5 card-neo p-5 bg-gradient-to-br from-white to-slate-50 flex flex-col justify-between relative overflow-hidden">
+                <div class="flex items-start justify-between">
+                  <div class="max-w-[190px]">
+                    <h4 class="font-bold text-slate-900 text-sm">Optimalisasi Anggaran 💡</h4>
+                    <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                      {{ familyStore.family?.telegram_chat_id ? 'Telegram Bot aktif! Anggota keluarga bisa langsung catat belanja via chat.' : 'Hubungkan Telegram Bot untuk catat pengeluaran instan lewat chat grup!' }}
+                    </p>
+                  </div>
+                  <!-- Mini graphic matching ACRU quick tips -->
+                  <div class="w-12 h-12 rounded-2xl bg-brand-50 border border-brand-200 text-brand-600 flex items-center justify-center font-bold shrink-0">
+                    🤖
+                  </div>
+                </div>
+
+                <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <button 
+                    @click="isTelegramModalOpen = true" 
+                    class="text-xs font-bold text-slate-900 hover:text-brand-600 flex items-center gap-1 transition"
+                  >
+                    <span>{{ familyStore.family?.telegram_chat_id ? 'Detail Koneksi Bot' : 'Hubungkan Bot Sekarang' }}</span>
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- BOTTOM ROW: Cost Analysis + Financial Health + Goal Tracker -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+              
+              <!-- 1. Cost Analysis (4 of 12) -->
+              <div class="md:col-span-4 card-neo p-5 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-sm">Analisis Biaya</h4>
+                    <p class="text-[11px] text-slate-400 font-medium">Berdasarkan kategori</p>
+                  </div>
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600">Januari</span>
+                </div>
+
+                <div class="my-2">
+                  <h3 class="text-2xl font-black text-slate-900 tracking-tight">
+                    {{ formatRupiah(totalExpense) }}
+                  </h3>
+                </div>
+
+                <!-- Segmented Multi-Color Horizontal Bar -->
+                <div class="w-full flex h-2.5 rounded-full overflow-hidden gap-0.5 my-2">
+                  <div class="bg-amber-400 h-full w-[30%]"></div>
+                  <div class="bg-lime-400 h-full w-[25%]"></div>
+                  <div class="bg-emerald-400 h-full w-[20%]"></div>
+                  <div class="bg-sky-400 h-full w-[15%]"></div>
+                  <div class="bg-slate-300 h-full w-[10%]"></div>
+                </div>
+
+                <!-- Categories Breakdown list -->
+                <div class="flex flex-col gap-1.5 mt-2 text-[11px]">
+                  <div v-for="cat in categoryBreakdown" :key="cat.name" class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full" :class="cat.color"></span>
+                      <span class="text-slate-600 font-medium truncate max-w-[110px]">{{ cat.name }}</span>
+                    </div>
+                    <span class="font-bold text-slate-800 font-mono">{{ cat.percentage }}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Financial Health Meter (4 of 12) -->
+              <div class="md:col-span-4">
+                <FinancialHealthGauge 
+                  :score-percentage="75"
+                  :total-saved="savedBalance"
+                />
+              </div>
+
+              <!-- 3. Goal & Envelope Tracker (4 of 12) -->
+              <div class="md:col-span-4 card-neo p-5 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-sm">Target Amplop</h4>
+                    <p class="text-[11px] text-slate-400 font-medium">Batas minimal dompet</p>
+                  </div>
+                  <button 
+                    v-if="isAdmin" 
+                    @click="openWalletModal"
+                    class="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg transition"
+                  >
+                    + Target
+                  </button>
+                </div>
+
+                <!-- Envelopes items list -->
+                <div class="flex flex-col gap-3.5 my-3">
+                  <div v-for="w in walletStore.wallets.slice(0, 3)" :key="w.id" class="flex flex-col gap-1">
+                    <div class="flex justify-between items-center text-[11px]">
+                      <span class="font-bold text-slate-800 truncate max-w-[110px]">{{ w.name }}</span>
+                      <span class="font-mono text-slate-500 font-semibold">{{ formatRupiah(w.current_balance) }} / {{ formatRupiah(w.minimum_limit || w.initial_balance) }}</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        class="h-full rounded-full transition-all"
+                        :class="w.current_balance <= w.minimum_limit ? 'bg-rose-500' : 'bg-brand-500'"
+                        :style="{ width: Math.min((w.current_balance / (w.minimum_limit || w.initial_balance || 1)) * 100, 100) + '%' }"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div v-if="walletStore.wallets.length === 0" class="text-center py-4 text-xs text-slate-400">
+                    Belum ada data amplop.
+                  </div>
+                </div>
+
+                <p class="text-[10px] text-slate-400 text-center border-t border-slate-100 pt-2">
+                  Dipantau otomatis sistem amplop pintar.
+                </p>
+              </div>
+            </div>
+
           </div>
-        </div>
-      </div>
 
-      <!-- TAB 2: TRANSAKSI (Task 3.2) -->
-      <div v-else-if="activeTab === 'transactions'">
-        <div class="flex justify-between items-center mb-6">
-          <h1 class="text-3xl font-bold">Riwayat Transaksi</h1>
-          <!-- Task 3.4: Role Guard - Admin Only -->
-          <button v-if="isAdmin" class="btn btn-primary" @click="openTxModal">+ Catat Transaksi</button>
-        </div>
+          <!-- RIGHT COLUMN (4 of 12 Cols: Virtual Cards + Quick Members + Recent Feed) -->
+          <div class="xl:col-span-4 flex flex-col gap-6">
+            
+            <!-- Widget 1: Virtual Card & Quick Actions -->
+            <VirtualCard 
+              :wallets="walletStore.wallets"
+              :selected-wallet-id="selectedWalletId"
+              @select-wallet="selectedWalletId = $event"
+              @open-wallet-modal="openWalletModal"
+              @open-tx-modal="openTxModal"
+              @open-proposal-modal="openProposalModal"
+              @link-telegram="isTelegramModalOpen = true"
+            />
 
-        <div v-if="txStore.loading" class="flex justify-center py-20">
-          <span class="loading loading-spinner loading-lg text-primary"></span>
-        </div>
-
-        <div v-else-if="txStore.transactions.length === 0" class="text-center py-20 bg-base-100 rounded-lg shadow">
-          <h2 class="text-2xl font-bold text-gray-400">Belum ada transaksi</h2>
-        </div>
-
-        <div v-else class="overflow-x-auto bg-base-100 rounded-lg shadow border border-base-300">
-          <table class="table w-full">
-            <thead>
-              <tr>
-                <th>Waktu</th>
-                <th>Dompet</th>
-                <th>Tipe</th>
-                <th>Kategori</th>
-                <th>Keterangan</th>
-                <th>Jumlah</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="tx in txStore.transactions" :key="tx.id">
-                <td class="text-xs">{{ new Date(tx.created_at).toLocaleString('id-ID') }}</td>
-                <td class="font-semibold">{{ getWalletName(tx.wallet_id) }}</td>
-                <td>
-                  <span class="badge" :class="tx.type === 'income' ? 'badge-success text-white' : 'badge-error text-white'">
-                    {{ tx.type.toUpperCase() }}
-                  </span>
-                </td>
-                <td>{{ tx.category || '-' }}</td>
-                <td>{{ tx.description || '-' }}</td>
-                <td class="font-bold" :class="tx.type === 'income' ? 'text-success' : 'text-error'">
-                  {{ tx.type === 'income' ? '+' : '-' }} {{ formatRupiah(tx.amount) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TAB 3: PROPOSAL / PENGAJUAN (Task 3.3) -->
-      <div v-else-if="activeTab === 'proposals'">
-        <div class="flex justify-between items-center mb-6">
-          <h1 class="text-3xl font-bold">Pengajuan Pengeluaran</h1>
-          <button class="btn btn-primary" @click="openProposalModal">+ Ajukan Pengeluaran</button>
-        </div>
-
-        <div v-if="txStore.loading" class="flex justify-center py-20">
-          <span class="loading loading-spinner loading-lg text-primary"></span>
-        </div>
-
-        <div v-else-if="txStore.proposals.length === 0" class="text-center py-20 bg-base-100 rounded-lg shadow">
-          <h2 class="text-2xl font-bold text-gray-400">Belum ada proposal pengeluaran</h2>
-        </div>
-
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div v-for="p in txStore.proposals" :key="p.id" class="card bg-base-100 shadow-xl border border-base-300">
-            <div class="card-body">
-              <div class="flex justify-between items-start">
-                <h2 class="card-title text-lg">{{ p.title }}</h2>
-                <span class="badge" :class="{
-                  'badge-warning': p.status === 'pending',
-                  'badge-success text-white': p.status === 'approved',
-                  'badge-error text-white': p.status === 'rejected'
-                }">
-                  {{ p.status.toUpperCase() }}
+            <!-- Widget 2: Family Members (Quick Payee Avatars matching ACRU) -->
+            <div class="card-neo p-5">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-bold text-slate-900 text-sm">Anggota Keluarga</h4>
+                <span class="text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">
+                  {{ familyMembers.length }} Aktif
                 </span>
               </div>
-              <p class="text-sm text-gray-500">{{ p.description }}</p>
-              <div class="divider my-1"></div>
-              <div class="flex justify-between items-center">
-                <div>
-                  <p class="text-xs text-gray-400">Target Dompet: <span class="font-semibold text-base-content">{{ getWalletName(p.wallet_id) }}</span></p>
-                  <p class="text-xl font-bold text-primary mt-1">{{ formatRupiah(p.amount) }}</p>
+              <div class="flex items-center justify-between gap-2 overflow-x-auto py-1">
+                <div 
+                  v-for="member in familyMembers" 
+                  :key="member.name"
+                  class="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
+                >
+                  <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-lg border border-slate-200/80 shadow-sm transition group-hover:scale-105" :class="member.color">
+                    {{ member.avatar }}
+                  </div>
+                  <span class="text-[10px] font-bold text-slate-700 truncate max-w-[55px] text-center">
+                    {{ member.name }}
+                  </span>
                 </div>
-                <!-- Task 3.4: Role Guard - Admin Actions Only -->
-                <div v-if="isAdmin && p.status === 'pending'" class="flex gap-2">
-                  <button class="btn btn-sm btn-success text-white" @click="approveProp(p.id)">Approve</button>
-                  <button class="btn btn-sm btn-error text-white" @click="rejectProp(p.id)">Reject</button>
+              </div>
+            </div>
+
+            <!-- Widget 3: Recent Transaction History Feed (Matching ACRU right column) -->
+            <div class="card-neo p-5 flex flex-col gap-3">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h4 class="font-bold text-slate-900 text-sm">Riwayat Terkini</h4>
+                  <p class="text-[11px] text-slate-400 font-medium">Transaksi terbaru</p>
+                </div>
+                <button 
+                  @click="activeTab = 'transactions'" 
+                  class="text-xs font-bold text-brand-600 hover:text-brand-700"
+                >
+                  Lihat Semua
+                </button>
+              </div>
+
+              <!-- Transaction Feed Items -->
+              <div class="flex flex-col divide-y divide-slate-100">
+                <div 
+                  v-for="tx in recentTransactions" 
+                  :key="tx.id"
+                  class="py-2.5 flex items-center justify-between gap-3 group hover:bg-slate-50/80 px-1.5 rounded-xl transition"
+                >
+                  <div class="flex items-center gap-3 min-w-0">
+                    <!-- Icon Box -->
+                    <div 
+                      class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold"
+                      :class="tx.type === 'income' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-700'"
+                    >
+                      <svg v-if="tx.type === 'income'" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                      <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </div>
+
+                    <div class="min-w-0">
+                      <p class="text-xs font-bold text-slate-800 truncate">
+                        {{ tx.description || tx.category || 'Transaksi Tanpa Keterangan' }}
+                      </p>
+                      <p class="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
+                        <span>{{ getWalletName(tx.wallet_id) }}</span>
+                        <span>•</span>
+                        <span>{{ new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) }}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Amount with + or - -->
+                  <div class="text-right shrink-0">
+                    <span 
+                      class="text-xs font-extrabold font-mono"
+                      :class="tx.type === 'income' ? 'text-emerald-600' : 'text-slate-900'"
+                    >
+                      {{ tx.type === 'income' ? '+' : '-' }}{{ formatRupiah(tx.amount) }}
+                    </span>
+                    <span class="text-[9px] block uppercase font-bold text-slate-400">Selesai</span>
+                  </div>
+                </div>
+
+                <!-- Empty Fallback -->
+                <div v-if="recentTransactions.length === 0" class="py-8 text-center text-xs text-slate-400">
+                  Belum ada transaksi dicatat.
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- VIEW 2: WALLETS TAB (DOMPET & AMPLOP)          -->
+        <!-- ============================================== -->
+        <div v-else-if="activeTab === 'wallets'" class="flex flex-col gap-6">
+          <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Kelola Dompet & Amplop Virtual</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Alokasikan anggaran keluarga dengan sistem amplop terarah</p>
+            </div>
+            <button 
+              v-if="isAdmin" 
+              class="btn bg-slate-900 hover:bg-slate-800 text-white rounded-2xl px-5 text-xs font-bold border-none shadow-sm"
+              @click="openWalletModal"
+            >
+              + Tambah Dompet Baru
+            </button>
+          </div>
+
+          <!-- Summary Bar -->
+          <div class="card-neo p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-brand-400">Ringkasan Anggaran</span>
+              <h3 class="text-2xl font-black mt-1">Total Alokasi: {{ formatRupiah(totalAllocation) }}</h3>
+              <p class="text-xs text-slate-300 mt-1">Estimasi Pendapatan: {{ monthlyIncome > 0 ? formatRupiah(monthlyIncome) : 'Belum diatur' }}</p>
+            </div>
+            <div class="w-full md:w-64">
+              <div class="flex justify-between text-xs font-semibold mb-1">
+                <span>Rasio Alokasi</span>
+                <span :class="totalAllocation > monthlyIncome && monthlyIncome > 0 ? 'text-rose-400' : 'text-brand-400'">
+                  {{ monthlyIncome > 0 ? Math.round((totalAllocation / monthlyIncome) * 100) : 0 }}%
+                </span>
+              </div>
+              <div class="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                <div 
+                  class="h-full rounded-full transition-all"
+                  :class="totalAllocation > monthlyIncome && monthlyIncome > 0 ? 'bg-rose-500' : 'bg-brand-400'"
+                  :style="{ width: Math.min((totalAllocation / (monthlyIncome || 1)) * 100, 100) + '%' }"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Wallets Grid -->
+          <div v-if="walletStore.loading" class="flex justify-center py-20">
+            <span class="loading loading-spinner loading-lg text-brand-500"></span>
+          </div>
+
+          <div v-else-if="walletStore.wallets.length === 0" class="card-neo p-12 text-center">
+            <h3 class="text-lg font-bold text-slate-700">Belum Ada Dompet</h3>
+            <p class="text-xs text-slate-400 mt-1">Mulai buat dompet pertama untuk mengelola alokasi belanja keluarga.</p>
+            <button v-if="isAdmin" @click="openWalletModal" class="btn btn-primary btn-sm mt-4 rounded-xl">
+              + Buat Dompet Pertama
+            </button>
+          </div>
+
+          <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div 
+              v-for="wallet in walletStore.wallets" 
+              :key="wallet.id"
+              class="card-neo p-6 flex flex-col justify-between relative overflow-hidden group hover:border-brand-300"
+            >
+              <div>
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Amplop</span>
+                    <h3 class="text-lg font-extrabold text-slate-900 mt-1.5">{{ wallet.name }}</h3>
+                  </div>
+                  <div class="w-8 h-8 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center font-bold">
+                    💳
+                  </div>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">{{ wallet.description || 'Tidak ada deskripsi' }}</p>
+              </div>
+
+              <div class="mt-6 pt-4 border-t border-slate-100 flex items-end justify-between">
+                <div>
+                  <span class="text-[10px] font-bold uppercase text-slate-400 block">Saldo Saat Ini</span>
+                  <span class="text-xl font-extrabold text-slate-900">{{ formatRupiah(wallet.current_balance) }}</span>
+                </div>
+                <div class="text-right">
+                  <span class="text-[10px] font-bold uppercase text-slate-400 block">Limit Minimal</span>
+                  <span 
+                    class="text-xs font-bold font-mono"
+                    :class="wallet.current_balance <= wallet.minimum_limit ? 'text-rose-600' : 'text-slate-600'"
+                  >
+                    {{ formatRupiah(wallet.minimum_limit) }}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+
+        <!-- ============================================== -->
+        <!-- VIEW 3: TRANSACTIONS TAB (RIWAYAT TRANSAKSI)   -->
+        <!-- ============================================== -->
+        <div v-else-if="activeTab === 'transactions'" class="flex flex-col gap-6">
+          <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Riwayat Seluruh Transaksi</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Catatan pengeluaran dan pemasukan keluarga secara realtime</p>
+            </div>
+            <button 
+              v-if="isAdmin" 
+              class="btn bg-slate-900 hover:bg-slate-800 text-white rounded-2xl px-5 text-xs font-bold border-none shadow-sm"
+              @click="openTxModal"
+            >
+              + Catat Transaksi Baru
+            </button>
+          </div>
+
+          <div v-if="txStore.loading" class="flex justify-center py-20">
+            <span class="loading loading-spinner loading-lg text-brand-500"></span>
+          </div>
+
+          <div v-else-if="filteredTransactions.length === 0" class="card-neo p-12 text-center">
+            <p class="text-sm font-semibold text-slate-400">Tidak ada transaksi yang cocok.</p>
+          </div>
+
+          <div v-else class="card-neo overflow-hidden p-0 border border-slate-200/70">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 border-b border-slate-200/80 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th class="py-4 px-6">Waktu</th>
+                    <th class="py-4 px-6">Dompet</th>
+                    <th class="py-4 px-6">Tipe</th>
+                    <th class="py-4 px-6">Kategori</th>
+                    <th class="py-4 px-6">Keterangan</th>
+                    <th class="py-4 px-6 text-right">Jumlah</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr v-for="tx in filteredTransactions" :key="tx.id" class="hover:bg-slate-50/80 transition font-medium">
+                    <td class="py-4 px-6 text-slate-400 font-mono text-[11px]">{{ new Date(tx.created_at).toLocaleString('id-ID') }}</td>
+                    <td class="py-4 px-6 font-bold text-slate-800">{{ getWalletName(tx.wallet_id) }}</td>
+                    <td class="py-4 px-6">
+                      <span 
+                        class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide inline-block"
+                        :class="tx.type === 'income' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'"
+                      >
+                        {{ tx.type }}
+                      </span>
+                    </td>
+                    <td class="py-4 px-6 text-slate-600">{{ tx.category || 'Umum' }}</td>
+                    <td class="py-4 px-6 text-slate-800 font-semibold">{{ tx.description || '-' }}</td>
+                    <td class="py-4 px-6 text-right font-mono font-extrabold text-sm" :class="tx.type === 'income' ? 'text-emerald-600' : 'text-slate-900'">
+                      {{ tx.type === 'income' ? '+' : '-' }}{{ formatRupiah(tx.amount) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- VIEW 4: PROPOSALS TAB (PENGAJUAN DANA)         -->
+        <!-- ============================================== -->
+        <div v-else-if="activeTab === 'proposals'" class="flex flex-col gap-6">
+          <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Pengajuan Anggaran Keluarga</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Semua anggota dapat mengajukan kebutuhan dana untuk persetujuan admin</p>
+            </div>
+            <button 
+              class="btn bg-slate-900 hover:bg-slate-800 text-white rounded-2xl px-5 text-xs font-bold border-none shadow-sm"
+              @click="openProposalModal"
+            >
+              + Ajukan Kebutuhan Baru
+            </button>
+          </div>
+
+          <div v-if="txStore.loading" class="flex justify-center py-20">
+            <span class="loading loading-spinner loading-lg text-brand-500"></span>
+          </div>
+
+          <div v-else-if="txStore.proposals.length === 0" class="card-neo p-12 text-center">
+            <h3 class="text-base font-bold text-slate-700">Belum Ada Pengajuan</h3>
+            <p class="text-xs text-slate-400 mt-1">Ajukan kebutuhan dana baru jika membutuhkan anggaran di luar rencana harian.</p>
+          </div>
+
+          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div 
+              v-for="p in txStore.proposals" 
+              :key="p.id"
+              class="card-neo p-6 flex flex-col justify-between"
+            >
+              <div>
+                <div class="flex items-start justify-between gap-3">
+                  <h3 class="font-extrabold text-base text-slate-900">{{ p.title }}</h3>
+                  <span 
+                    class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider"
+                    :class="{
+                      'bg-amber-50 text-amber-700 border border-amber-200': p.status === 'pending',
+                      'bg-emerald-50 text-emerald-700 border border-emerald-200': p.status === 'approved',
+                      'bg-rose-50 text-rose-700 border border-rose-200': p.status === 'rejected',
+                    }"
+                  >
+                    {{ p.status }}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-2 leading-relaxed">{{ p.description }}</p>
+              </div>
+
+              <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] text-slate-400 font-bold uppercase block">Target Dompet: {{ getWalletName(p.wallet_id) }}</span>
+                  <span class="text-xl font-extrabold text-slate-900 font-mono">{{ formatRupiah(p.amount) }}</span>
+                </div>
+
+                <!-- Admin Action Buttons -->
+                <div v-if="isAdmin && p.status === 'pending'" class="flex gap-2">
+                  <button 
+                    @click="approveProp(p.id)" 
+                    class="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition shadow-sm"
+                  >
+                    Setujui
+                  </button>
+                  <button 
+                    @click="rejectProp(p.id)" 
+                    class="px-3.5 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs transition shadow-sm"
+                  >
+                    Tolak
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
     </div>
 
-    <!-- Modal Create Wallet -->
+    <!-- ============================================== -->
+    <!-- MODALS & POPUPS                                -->
+    <!-- ============================================== -->
+    
+    <!-- 1. Modal Create Wallet -->
     <dialog :class="isWalletModalOpen ? 'modal modal-open' : 'modal'">
-      <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Buat Dompet Baru</h3>
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
+        <h3 class="font-extrabold text-lg text-slate-900 mb-1">Buat Dompet Baru</h3>
+        <p class="text-xs text-slate-400 mb-4">Tambahkan amplop virtual untuk mengkategorikan dana keluarga.</p>
 
-        <div v-if="exceedsIncome" class="alert alert-error text-xs mb-4">
-          <span>⚠️ Total alokasi awal dompet melebihi pendapatan bulanan keluarga!</span>
+        <div v-if="exceedsIncome" class="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl mb-4 font-medium">
+          ⚠️ Total alokasi awal dompet melebihi pendapatan bulanan keluarga!
         </div>
 
-        <div class="form-control w-full mb-3">
-          <label class="label"><span class="label-text">Nama Dompet</span></label>
-          <input type="text" v-model="newWallet.name" placeholder="Contoh: Makan Bulanan" class="input input-bordered w-full" />
-        </div>
-        <div class="form-control w-full mb-3">
-          <label class="label"><span class="label-text">Deskripsi (Opsional)</span></label>
-          <input type="text" v-model="newWallet.description" placeholder="Belanja harian" class="input input-bordered w-full" />
-        </div>
-        <div class="grid grid-cols-2 gap-4 mb-4">
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Saldo Awal (Rp)</span></label>
-            <input type="number" v-model.number="newWallet.initial_balance" class="input input-bordered w-full" />
+        <div class="flex flex-col gap-3.5">
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Nama Dompet</label>
+            <input type="text" v-model="newWallet.name" placeholder="Contoh: Makan Bulanan" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
           </div>
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Limit Minimum (Rp)</span></label>
-            <input type="number" v-model.number="newWallet.minimum_limit" class="input input-bordered w-full" />
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Deskripsi (Opsional)</label>
+            <input type="text" v-model="newWallet.description" placeholder="Belanja bahan makanan & dapur" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-bold text-slate-700 block mb-1">Saldo Awal (Rp)</label>
+              <input type="number" v-model.number="newWallet.initial_balance" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+            <div>
+              <label class="text-xs font-bold text-slate-700 block mb-1">Limit Min (Rp)</label>
+              <input type="number" v-model.number="newWallet.minimum_limit" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
           </div>
         </div>
-        <div class="modal-action">
-          <button class="btn" @click="closeWalletModal" :disabled="isSubmitting">Batal</button>
-          <button class="btn btn-primary" @click="handleSubmitWallet" :class="{ loading: isSubmitting }" :disabled="isSubmitting || !newWallet.name || exceedsIncome">Simpan</button>
+
+        <div class="modal-action mt-6 gap-2">
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeWalletModal" :disabled="isSubmitting">Batal</button>
+          <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitWallet" :disabled="isSubmitting || !newWallet.name || exceedsIncome">
+            {{ isSubmitting ? 'Menyimpan...' : 'Simpan Dompet' }}
+          </button>
         </div>
       </div>
     </dialog>
 
-    <!-- Modal Create Transaction -->
+    <!-- 2. Modal Create Transaction -->
     <dialog :class="isTxModalOpen ? 'modal modal-open' : 'modal'">
-      <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Catat Transaksi Langsung</h3>
-        <div class="form-control w-full mb-3">
-          <label class="label"><span class="label-text">Pilih Dompet</span></label>
-          <select v-model="newTx.wallet_id" class="select select-bordered w-full">
-            <option v-for="w in walletStore.wallets" :key="w.id" :value="w.id">{{ w.name }} (Saldo: {{ formatRupiah(w.current_balance) }})</option>
-          </select>
-        </div>
-        <div class="form-control w-full mb-3">
-          <label class="label"><span class="label-text">Tipe Transaksi</span></label>
-          <select v-model="newTx.type" class="select select-bordered w-full">
-            <option value="expense">Pengeluaran (Expense)</option>
-            <option value="income">Pemasukan (Income)</option>
-          </select>
-        </div>
-        <div class="grid grid-cols-2 gap-4 mb-3">
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Jumlah (Rp)</span></label>
-            <input type="number" v-model.number="newTx.amount" class="input input-bordered w-full" />
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
+        <h3 class="font-extrabold text-lg text-slate-900 mb-1">Catat Transaksi</h3>
+        <p class="text-xs text-slate-400 mb-4">Input transaksi pengeluaran atau pemasukan langsung.</p>
+
+        <div class="flex flex-col gap-3.5">
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Pilih Dompet</label>
+            <select v-model="newTx.wallet_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400">
+              <option v-for="w in walletStore.wallets" :key="w.id" :value="w.id">{{ w.name }} (Saldo: {{ formatRupiah(w.current_balance) }})</option>
+            </select>
           </div>
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Kategori</span></label>
-            <input type="text" v-model="newTx.category" placeholder="Makanan / Utilitas" class="input input-bordered w-full" />
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Tipe Transaksi</label>
+            <select v-model="newTx.type" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400">
+              <option value="expense">Pengeluaran (Expense)</option>
+              <option value="income">Pemasukan (Income)</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-bold text-slate-700 block mb-1">Jumlah (Rp)</label>
+              <input type="number" v-model.number="newTx.amount" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+            <div>
+              <label class="text-xs font-bold text-slate-700 block mb-1">Kategori</label>
+              <input type="text" v-model="newTx.category" placeholder="Makanan / Utilitas" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Keterangan</label>
+            <input type="text" v-model="newTx.description" placeholder="Beli galon & gas" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
           </div>
         </div>
-        <div class="form-control w-full mb-4">
-          <label class="label"><span class="label-text">Keterangan</span></label>
-          <input type="text" v-model="newTx.description" placeholder="Keterangan transaksi" class="input input-bordered w-full" />
-        </div>
-        <div class="modal-action">
-          <button class="btn" @click="closeTxModal" :disabled="isSubmitting">Batal</button>
-          <button class="btn btn-primary" @click="handleSubmitTx" :class="{ loading: isSubmitting }" :disabled="isSubmitting || !newTx.wallet_id || newTx.amount <= 0">Simpan</button>
+
+        <div class="modal-action mt-6 gap-2">
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeTxModal" :disabled="isSubmitting">Batal</button>
+          <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitTx" :disabled="isSubmitting || !newTx.wallet_id || newTx.amount <= 0">
+            {{ isSubmitting ? 'Menyimpan...' : 'Catat Transaksi' }}
+          </button>
         </div>
       </div>
     </dialog>
 
-    <!-- Modal Create Proposal -->
+    <!-- 3. Modal Create Proposal -->
     <dialog :class="isProposalModalOpen ? 'modal modal-open' : 'modal'">
-      <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Ajukan Pengeluaran Baru</h3>
-        <div class="form-control w-full mb-3">
-          <label class="label"><span class="label-text">Pilih Dompet Target</span></label>
-          <select v-model="newProposal.wallet_id" class="select select-bordered w-full">
-            <option v-for="w in walletStore.wallets" :key="w.id" :value="w.id">{{ w.name }}</option>
-          </select>
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
+        <h3 class="font-extrabold text-lg text-slate-900 mb-1">Ajukan Pengeluaran Baru</h3>
+        <p class="text-xs text-slate-400 mb-4">Pengajuan akan ditinjau oleh Admin keluarga sebelum disetujui.</p>
+
+        <div class="flex flex-col gap-3.5">
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Pilih Dompet Target</label>
+            <select v-model="newProposal.wallet_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400">
+              <option v-for="w in walletStore.wallets" :key="w.id" :value="w.id">{{ w.name }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Judul Pengajuan</label>
+            <input type="text" v-model="newProposal.title" placeholder="Contoh: Beli Popok Bayi" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Nominal (Rp)</label>
+            <input type="number" v-model.number="newProposal.amount" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">Alasan / Deskripsi</label>
+            <input type="text" v-model="newProposal.description" placeholder="Popok stok mingguan habis" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
         </div>
-        <div class="form-control w-full mb-3">
-          <label class="label"><span class="label-text">Judul Pengajuan</span></label>
-          <input type="text" v-model="newProposal.title" placeholder="Beli Popok Bayi" class="input input-bordered w-full" />
+
+        <div class="modal-action mt-6 gap-2">
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeProposalModal" :disabled="isSubmitting">Batal</button>
+          <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitProposal" :disabled="isSubmitting || !newProposal.title || newProposal.amount <= 0">
+            {{ isSubmitting ? 'Mengirim...' : 'Kirim Pengajuan' }}
+          </button>
         </div>
-        <div class="form-control w-full mb-3">
-          <label class="label"><span class="label-text">Nominal (Rp)</span></label>
-          <input type="number" v-model.number="newProposal.amount" class="input input-bordered w-full" />
+      </div>
+    </dialog>
+
+    <!-- 4. Modal Telegram Bot Info -->
+    <dialog :class="isTelegramModalOpen ? 'modal modal-open' : 'modal'">
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
+        <h3 class="font-extrabold text-lg text-slate-900 mb-1">Integrasi Telegram Bot 🤖</h3>
+        <p class="text-xs text-slate-400 mb-4">Catat transaksi langsung dari obrolan bot Telegram grup keluarga.</p>
+
+        <div v-if="familyStore.family?.telegram_chat_id" class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs">
+          <div class="flex items-center gap-2 text-emerald-800 font-bold mb-1">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Bot Telegram Terhubung</span>
+          </div>
+          <p class="text-emerald-700">Chat ID: <span class="font-mono font-bold">{{ familyStore.family.telegram_chat_id }}</span></p>
         </div>
-        <div class="form-control w-full mb-4">
-          <label class="label"><span class="label-text">Alasan / Deskripsi</span></label>
-          <input type="text" v-model="newProposal.description" placeholder="Popok stok mingguan habis" class="input input-bordered w-full" />
+
+        <div v-else class="flex flex-col gap-3 text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+          <p class="font-bold text-slate-800">Cara menghubungkan bot:</p>
+          <ol class="list-decimal list-inside space-y-1.5">
+            <li>Buka bot Telegram ACIS.</li>
+            <li>Kirim perintah berikut ke bot:</li>
+          </ol>
+          <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between font-mono font-bold text-slate-900">
+            <code>/link {{ familyStore.family?.invite_code }}</code>
+          </div>
         </div>
-        <div class="modal-action">
-          <button class="btn" @click="closeProposalModal" :disabled="isSubmitting">Batal</button>
-          <button class="btn btn-primary" @click="handleSubmitProposal" :class="{ loading: isSubmitting }" :disabled="isSubmitting || !newProposal.title || newProposal.amount <= 0">Kirim Pengajuan</button>
+
+        <div class="modal-action mt-6 justify-between">
+          <button 
+            v-if="familyStore.family?.telegram_chat_id" 
+            class="btn btn-error btn-outline btn-sm rounded-xl text-xs font-bold"
+            @click="handleDisconnectTelegram"
+          >
+            Putuskan Koneksi
+          </button>
+          <div v-else></div>
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="isTelegramModalOpen = false">Tutup</button>
         </div>
       </div>
     </dialog>
   </div>
 </template>
+
