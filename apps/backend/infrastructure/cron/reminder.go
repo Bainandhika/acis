@@ -2,10 +2,10 @@ package cron
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
-	"github.com/rs/zerolog/log"
 )
 
 type WalletMinBalance struct {
@@ -35,7 +35,7 @@ func (w *BalanceReminderWorker) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info().Msg("Balance reminder worker stopping...")
+			slog.Info("Balance reminder worker stopping...")
 			return
 		case <-ticker.C:
 			w.checkLowBalanceWallets(ctx)
@@ -51,16 +51,16 @@ func (w *BalanceReminderWorker) checkLowBalanceWallets(ctx context.Context) {
 	var lowBalanceWallets []WalletMinBalance
 	err := w.db.SelectContext(ctx, &lowBalanceWallets, query)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to query low balance wallets")
+		slog.Error("Failed to query low balance wallets", slog.Any("error", err))
 		return
 	}
 
 	for _, wallet := range lowBalanceWallets {
-		log.Warn().
-			Str("wallet_id", wallet.ID).
-			Str("wallet_name", wallet.Name).
-			Float64("current_balance", wallet.CurrentBalance).
-			Float64("minimum_limit", wallet.MinimumLimit).
-			Msg("WARNING: Wallet balance reached or fell below minimum limit!")
+		slog.Warn("WARNING: Wallet balance reached or fell below minimum limit!",
+			slog.String("wallet_id", wallet.ID),
+			slog.String("wallet_name", wallet.Name),
+			slog.Float64("current_balance", wallet.CurrentBalance),
+			slog.Float64("minimum_limit", wallet.MinimumLimit),
+		)
 	}
 }
