@@ -2,11 +2,11 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 )
 
 const TraceIDKey = "X-Transaction-ID"
@@ -27,20 +27,20 @@ func TraceID() gin.HandlerFunc {
 		ctx := context.WithValue(c.Request.Context(), TraceIDKey, traceID)
 		c.Request = c.Request.WithContext(ctx)
 
-		log.Info().
-			Str("trace_id", traceID).
-			Str("method", c.Request.Method).
-			Str("path", c.Request.URL.Path).
-			Str("client_ip", c.ClientIP()).
-			Msg("Incoming HTTP Request")
+		slog.Info("Incoming HTTP Request",
+			slog.String("trace_id", traceID),
+			slog.String("method", c.Request.Method),
+			slog.String("path", c.Request.URL.Path),
+			slog.String("client_ip", c.ClientIP()),
+		)
 
 		c.Next()
 
 		latency := time.Since(startTime).Milliseconds()
-		log.Info().
-			Str("trace_id", traceID).
-			Int64("latency_ms", latency).
-			Int("status_code", c.Writer.Status()).
-			Msg("HTTP Request Completed")
+		slog.Info("HTTP Request Completed",
+			slog.String("trace_id", traceID),
+			slog.Int64("latency_ms", latency),
+			slog.Int("status_code", c.Writer.Status()),
+		)
 	}
 }
