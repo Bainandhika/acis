@@ -5,10 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
-
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type Client struct {
@@ -27,7 +26,7 @@ func NewClient(botToken string) *Client {
 
 func (c *Client) SendMessage(ctx context.Context, chatID int64, text string) error {
 	if c.botToken == "" {
-		zerolog.Warn().Msg("Telegram bot token not configured, skipping SendMessage")
+		slog.Warn("Telegram bot token not configured, skipping SendMessage")
 		return nil
 	}
 
