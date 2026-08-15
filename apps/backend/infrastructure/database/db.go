@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
-	zerolog "github.com/rs/zerolog/log"
 )
 
 // AppDB wraps sqlx.DB to add custom logging with trace ID
@@ -52,12 +52,12 @@ func logQuery(ctx context.Context, query string, args ...interface{}) {
 
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		zerolog.Info().
-			Str("trace_id", traceID).
-			Str("query", query).
-			Interface("args", args).
-			Int64("duration_ms", duration).
-			Msg("DB Query Executed")
+		slog.Info("DB Query Executed",
+			slog.String("trace_id", traceID),
+			slog.String("query", query),
+			slog.Any("args", args),
+			slog.Int64("duration_ms", duration),
+		)
 	}()
 }
 
