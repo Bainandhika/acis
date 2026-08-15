@@ -1,11 +1,11 @@
 package telegram
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type WebhookHandler struct {
@@ -25,7 +25,7 @@ func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
 	if expectedSecret != "" {
 		headerSecret := c.GetHeader("X-Telegram-Bot-Api-Secret-Token")
 		if headerSecret != expectedSecret {
-			zerolog.Warn().Msg("Unauthorized Telegram webhook request: secret token mismatch")
+			slog.Warn("Unauthorized Telegram webhook request: secret token mismatch")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized webhook token"})
 			c.Abort()
 			return
@@ -40,7 +40,7 @@ func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
 
 	replyMsg, err := h.botService.ProcessUpdate(c.Request.Context(), &update)
 	if err != nil {
-		zerolog.Error().Err(err).Msg("Error processing Telegram update")
+		slog.Error("Error processing Telegram update", slog.Any("error", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "processing error"})
 		return
 	}
