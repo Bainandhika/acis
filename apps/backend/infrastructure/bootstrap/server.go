@@ -68,6 +68,7 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 	})
 
 	otpCache := cache.NewOTPCache(redisClient, cfg.OTP.EncryptionKey)
+	tokenStore := cache.NewRefreshTokenStore(redisClient)
 
 	s := &Server{
 		cfg:         cfg,
@@ -78,12 +79,12 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 		limiter:     limiter,
 	}
 
-	s.setupRoutes()
+	s.setupRoutes(tokenStore)
 	return s
 }
 
 
-func (s *Server) setupRoutes() {
+func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	// Outbox Repository & Worker Pool Setup
 	outboxRepo := notification.NewOutboxRepository(s.db)
 	s.workerPool = worker.NewWorkerPool(outboxRepo, 3, 100)
@@ -136,7 +137,7 @@ func (s *Server) setupRoutes() {
 	if err != nil {
 		otpTTL = 5 * time.Minute
 	}
-	authSvc := authentication.NewService(authRepo, roleFinder, outboxRepo, s.otpCache, s.db, s.cfg.JWT.Secret, otpTTL)
+	authSvc := authentication.NewService(authRepo, roleFinder, outboxRepo, s.otpCache, tokenStore, s.db, s.cfg.JWT.Secret, otpTTL)
 	isProduction := s.cfg.Server.Mode == "release"
 	authHandler := authentication.NewAuthHandler(authSvc, isProduction)
 
@@ -166,6 +167,8 @@ func (s *Server) setupRoutes() {
 
 		v1.POST("/authentication/request-otp", authHandler.RequestOTP)
 		v1.POST("/authentication/verify-otp", authHandler.VerifyOTP)
+		v1.POST("/authentication/refresh", authHandler.RefreshToken)
+		v1.POST("/authentication/logout", authHandler.Logout)
 
 		v1.POST("/telegram/webhook", webhookHandler.HandleWebhook)
 	}
@@ -174,7 +177,6 @@ func (s *Server) setupRoutes() {
 	familySetup := v1.Group("")
 	familySetup.Use(middleware.AuthMiddleware(s.cfg.JWT.Secret))
 	{
-		familySetup.POST("/authentication/logout", authHandler.Logout)
 		familySetup.POST("/family", familyHandler.CreateFamily)
 		familySetup.POST("/family/join", familyHandler.JoinFamily)
 		familySetup.GET("/family/me", familyHandler.GetMyFamily)
