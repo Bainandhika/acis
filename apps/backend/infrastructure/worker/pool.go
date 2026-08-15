@@ -3,10 +3,10 @@ package worker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/notification"
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type NotificationHandler func(ctx context.Context, job notification.NotificationJob) error
@@ -57,7 +57,7 @@ func (p *WorkerPool) Start(ctx context.Context) {
 		p.wg.Add(1)
 		go p.worker(ctx, i)
 	}
-	zerolog.Info().Int("workers", p.workerCount).Msg("Outbox worker pool started")
+	slog.Info("Outbox worker pool started", slog.Int("workers", p.workerCount))
 }
 
 func (p *WorkerPool) worker(ctx context.Context, id int) {
@@ -82,18 +82,18 @@ func (p *WorkerPool) processJob(ctx context.Context, job notification.Notificati
 
 	if !exists {
 		errMsg := fmt.Sprintf("no handler registered for channel: %s", job.Channel)
-		zerolog.Error().Str("job_id", job.ID).Str("channel", job.Channel).Msg(errMsg)
+		slog.Error(errMsg, slog.String("job_id", job.ID), slog.String("channel", job.Channel))
 		_ = p.repo.MarkFailed(ctx, job.ID, errMsg)
 		return
 	}
 
-	zerolog.Debug().Str("job_id", job.ID).Int("worker_id", workerID).Msg("Processing outbox notification job")
+	slog.Debug("Processing outbox notification job", slog.String("job_id", job.ID), slog.Int("worker_id", workerID))
 
 	if err := handler(ctx, job); err != nil {
-		zerolog.Error().Err(err).Str("job_id", job.ID).Int("worker_id", workerID).Msg("Failed to execute notification job")
+		slog.Error("Failed to execute notification job", slog.Any("error", err), slog.String("job_id", job.ID), slog.Int("worker_id", workerID))
 		_ = p.repo.MarkFailed(ctx, job.ID, err.Error())
 	} else {
-		zerolog.Info().Str("job_id", job.ID).Int("worker_id", workerID).Msg("Notification job executed successfully")
+		slog.Info("Notification job executed successfully", slog.String("job_id", job.ID), slog.Int("worker_id", workerID))
 		_ = p.repo.MarkSent(ctx, job.ID)
 	}
 }
@@ -102,5 +102,5 @@ func (p *WorkerPool) Stop() {
 	close(p.stopChan)
 	close(p.jobChan)
 	p.wg.Wait()
-	zerolog.Info().Msg("Outbox worker pool stopped gracefully")
+	slog.Info("Outbox worker pool stopped gracefully")
 }
