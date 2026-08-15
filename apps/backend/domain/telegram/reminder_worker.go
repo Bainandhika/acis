@@ -3,11 +3,11 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/notification"
-	zerolog "github.com/rs/zerolog/log"
 )
 
 type LowBalanceWorker struct {
@@ -34,7 +34,7 @@ func NewLowBalanceWorker(familyService FamilyService, outboxRepo notification.Ou
 
 func (w *LowBalanceWorker) Start(ctx context.Context) {
 	w.ticker = time.NewTicker(w.interval)
-	zerolog.Info().Dur("interval", w.interval).Msg("Telegram low-balance reminder worker started")
+	slog.Info("Telegram low-balance reminder worker started", slog.Duration("interval", w.interval))
 
 	go func() {
 		for {
@@ -51,7 +51,7 @@ func (w *LowBalanceWorker) Start(ctx context.Context) {
 func (w *LowBalanceWorker) checkAndEnqueueReminders(ctx context.Context) {
 	wallets, err := w.familyService.GetLowBalanceWallets(ctx)
 	if err != nil {
-		zerolog.Error().Err(err).Msg("Failed to check low-balance wallets")
+		slog.Error("Failed to check low-balance wallets", slog.Any("error", err))
 		return
 	}
 
@@ -61,7 +61,7 @@ func (w *LowBalanceWorker) checkAndEnqueueReminders(ctx context.Context) {
 
 	tx, err := w.db.BeginTxx(ctx, nil)
 	if err != nil {
-		zerolog.Error().Err(err).Msg("Failed to begin transaction for low balance alerts")
+		slog.Error("Failed to begin transaction for low balance alerts", slog.Any("error", err))
 		return
 	}
 	defer tx.Rollback()
@@ -81,14 +81,14 @@ func (w *LowBalanceWorker) checkAndEnqueueReminders(ctx context.Context) {
 		}
 
 		if err := w.outboxRepo.EnqueueTx(ctx, tx, "telegram_alert", recipient, payload); err != nil {
-			zerolog.Error().Err(err).Str("wallet_id", wallet.WalletID).Msg("Failed to enqueue low-balance alert to outbox")
+			slog.Error("Failed to enqueue low-balance alert to outbox", slog.Any("error", err), slog.String("wallet_id", wallet.WalletID))
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		zerolog.Error().Err(err).Msg("Failed to commit low-balance alert outbox transaction")
+		slog.Error("Failed to commit low-balance alert outbox transaction", slog.Any("error", err))
 	} else {
-		zerolog.Info().Int("alerts_enqueued", len(wallets)).Msg("Low-balance outbox alerts enqueued successfully")
+		slog.Info("Low-balance outbox alerts enqueued successfully", slog.Int("alerts_enqueued", len(wallets)))
 	}
 }
 
@@ -101,5 +101,5 @@ func (w *LowBalanceWorker) Stop() {
 	default:
 		close(w.stopChan)
 	}
-	zerolog.Info().Msg("Low-balance reminder worker stopped")
+	slog.Info("Low-balance reminder worker stopped")
 }
