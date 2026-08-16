@@ -4,9 +4,9 @@ import axios, {
     type AxiosResponse,
     type AxiosError
 } from 'axios';
-import { getAccessToken, useAuthStore, type AuthResponse } from '../stores/auth';
+import { getAccessToken, useAuthStore, type AuthResponse, getApiBaseUrl } from '../stores/auth';
 
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+const API_BASE_URL = getApiBaseUrl();
 
 // Custom config type with retry flag
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
