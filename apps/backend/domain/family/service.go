@@ -17,11 +17,14 @@ type FamilyService interface {
 	JoinFamily(ctx context.Context, userID, inviteCode string) (*FamilyDTO, error)
 	GetMyFamily(ctx context.Context, userID string) (*FamilyDTO, error)
 	UpdateFamilySettings(ctx context.Context, familyID string, req UpdateFamilySettingsReq) error
+	UpdateFamilyName(ctx context.Context, familyID string, name string) error
 	DisconnectTelegram(ctx context.Context, familyID string) error
 	FindByInviteCode(ctx context.Context, inviteCode string) (*FamilyDTO, error)
 	FindByTelegramChatID(ctx context.Context, chatID int64) (*FamilyDTO, error)
 	LinkTelegramChatID(ctx context.Context, inviteCode string, chatID int64) error
 	CreateWallet(ctx context.Context, userID, familyID string, req CreateWalletReq) (*WalletDTO, error)
+	UpdateWallet(ctx context.Context, walletID, familyID string, req UpdateWalletReq) (*WalletDTO, error)
+	DeleteWallet(ctx context.Context, walletID, familyID string) error
 	GetWallets(ctx context.Context, familyID string) ([]WalletDTO, error)
 	GetWalletBalances(ctx context.Context, familyID string) ([]WalletBalanceDTO, error)
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
@@ -144,9 +147,14 @@ func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*Family
 
 	var memberDTOs []FamilyMemberDTO
 	for _, m := range members {
+		userName := ""
+		if m.UserName != nil {
+			userName = *m.UserName
+		}
 		memberDTOs = append(memberDTOs, FamilyMemberDTO{
 			ID:       m.ID,
 			UserID:   m.UserID,
+			UserName: userName,
 			Role:     m.Role,
 			JoinedAt: m.JoinedAt,
 		})
@@ -166,11 +174,19 @@ func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*Family
 
 func (s *familyService) UpdateFamilySettings(ctx context.Context, familyID string, req UpdateFamilySettingsReq) error {
 	if req.MonthlyIncome != nil {
-		if err := s.repo.UpdateMonthlyIncome(ctx, familyID, *req.MonthlyIncome); err != nil {
-			return errors.New("failed to update monthly income")
+		if *req.MonthlyIncome < 0 {
+			return errors.New("monthly income cannot be negative")
 		}
+		return s.repo.UpdateMonthlyIncome(ctx, familyID, *req.MonthlyIncome)
 	}
 	return nil
+}
+
+func (s *familyService) UpdateFamilyName(ctx context.Context, familyID string, name string) error {
+	if name == "" {
+		return errors.New("family name cannot be empty")
+	}
+	return s.repo.UpdateFamilyName(ctx, familyID, name)
 }
 
 func (s *familyService) DisconnectTelegram(ctx context.Context, familyID string) error {
@@ -224,9 +240,14 @@ func (s *familyService) GetMembers(ctx context.Context, familyID string) ([]Fami
 	}
 	var dtos []FamilyMemberDTO
 	for _, m := range members {
+		userName := ""
+		if m.UserName != nil {
+			userName = *m.UserName
+		}
 		dtos = append(dtos, FamilyMemberDTO{
 			ID:       m.ID,
 			UserID:   m.UserID,
+			UserName: userName,
 			Role:     m.Role,
 			JoinedAt: m.JoinedAt,
 		})
@@ -261,6 +282,49 @@ func (s *familyService) CreateWallet(ctx context.Context, userID, familyID strin
 		MinimumLimit:   wallet.MinimumLimit,
 		CreatedAt:      wallet.CreatedAt,
 	}, nil
+}
+
+func (s *familyService) UpdateWallet(ctx context.Context, walletID, familyID string, req UpdateWalletReq) (*WalletDTO, error) {
+	wallet, err := s.repo.GetWalletByID(ctx, walletID)
+	if err != nil || wallet == nil {
+		return nil, errors.New("wallet not found")
+	}
+	if wallet.FamilyID != familyID {
+		return nil, errors.New("unauthorized wallet update")
+	}
+
+	if err := s.repo.UpdateWallet(ctx, walletID, req.Name, req.Description, req.MinimumLimit); err != nil {
+		slog.Error("Failed to update wallet", slog.Any("error", err))
+		return nil, errors.New("failed to update wallet")
+	}
+
+	updated, err := s.repo.GetWalletByID(ctx, walletID)
+	if err != nil || updated == nil {
+		return nil, errors.New("failed to retrieve updated wallet")
+	}
+
+	return &WalletDTO{
+		ID:             updated.ID,
+		FamilyID:       updated.FamilyID,
+		Name:           updated.Name,
+		Description:    updated.Description,
+		InitialBalance: updated.InitialBalance,
+		CurrentBalance: updated.CurrentBalance,
+		MinimumLimit:   updated.MinimumLimit,
+		CreatedAt:      updated.CreatedAt,
+	}, nil
+}
+
+func (s *familyService) DeleteWallet(ctx context.Context, walletID, familyID string) error {
+	wallet, err := s.repo.GetWalletByID(ctx, walletID)
+	if err != nil || wallet == nil {
+		return errors.New("wallet not found")
+	}
+	if wallet.FamilyID != familyID {
+		return errors.New("unauthorized wallet delete")
+	}
+
+	return s.repo.DeleteWallet(ctx, walletID, familyID)
 }
 
 func (s *familyService) GetWallets(ctx context.Context, familyID string) ([]WalletDTO, error) {
