@@ -32,6 +32,8 @@ type FamilyRepository interface {
 	UpdateWallet(ctx context.Context, walletID string, name string, description *string, minimumLimit float64) error
 	DeleteWallet(ctx context.Context, walletID string, familyID string) error
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
+	FindMemberByID(ctx context.Context, memberID string) (*FamilyMember, error)
+	RemoveMember(ctx context.Context, memberID string, familyID string) error
 }
 
 type familyRepoImpl struct {
@@ -171,4 +173,20 @@ func (r *familyRepoImpl) GetLowBalanceWallets(ctx context.Context) ([]LowBalance
 	var list []LowBalanceWalletDTO
 	err := r.db.SelectContext(ctx, &list, query)
 	return list, err
+}
+
+func (r *familyRepoImpl) FindMemberByID(ctx context.Context, memberID string) (*FamilyMember, error) {
+	query := `SELECT id, family_id, user_id, role, joined_at FROM family_members WHERE id = $1 LIMIT 1`
+	var m FamilyMember
+	err := r.db.GetContext(ctx, &m, query, memberID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &m, err
+}
+
+func (r *familyRepoImpl) RemoveMember(ctx context.Context, memberID string, familyID string) error {
+	query := `DELETE FROM family_members WHERE id = $1 AND family_id = $2`
+	_, err := r.db.ExecContext(ctx, query, memberID, familyID)
+	return err
 }
