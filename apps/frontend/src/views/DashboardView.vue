@@ -490,8 +490,9 @@ const rejectProp = async (id: string) => {
                     {{ t('dashboard.family.title') }}
                   </span>
                   <button 
-                    @click="openFamilyManageModal()"
-                    class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition text-xs flex items-center gap-1 font-bold"
+                    type="button"
+                    @click="openFamilyManageModal"
+                    class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition text-xs flex items-center gap-1 font-bold cursor-pointer"
                     :title="t('modals.familyManage.title')"
                   >
                     <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -558,9 +559,17 @@ const rejectProp = async (id: string) => {
                       {{ (member.user_name || (member.user_id === authStore.user?.id ? authStore.user?.username : 'U') || 'U').charAt(0).toUpperCase() }}
                     </div>
                     <div class="min-w-0">
-                      <h4 class="text-xs font-black text-slate-900 truncate">
-                        {{ member.user_name || (member.user_id === authStore.user?.id ? (authStore.user?.username || authStore.user?.name) : (`${t('dashboard.familyMembers.member')} #${member.user_id.slice(0, 6)}`)) }}
-                      </h4>
+                      <div class="flex items-center gap-1.5">
+                        <h4 class="text-xs font-black text-slate-900 truncate">
+                          {{ member.user_name || (member.user_id === authStore.user?.id ? (authStore.user?.username || authStore.user?.name) : (`${t('dashboard.familyMembers.member')} #${member.user_id.slice(0, 6)}`)) }}
+                        </h4>
+                        <span 
+                          v-if="member.user_id === authStore.user?.id" 
+                          class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-brand-400 text-slate-950 tracking-wider shrink-0"
+                        >
+                          {{ t('modals.familyManage.youBadge') }}
+                        </span>
+                      </div>
                       <span class="text-[10px] text-slate-400 font-medium">
                         {{ t('dashboard.familyMembers.joined') }} {{ new Date(member.joined_at).toLocaleDateString('id-ID') }}
                       </span>
@@ -1216,7 +1225,7 @@ const rejectProp = async (id: string) => {
     </dialog>
 
     <!-- 4. Modal Family Management -->
-    <dialog :class="isFamilyManageModalOpen ? 'modal modal-open' : 'modal'">
+    <dialog :class="isFamilyManageModalOpen ? 'modal modal-open' : 'modal'" :open="isFamilyManageModalOpen">
       <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-xl">
         <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.familyManage.title') }}</h3>
         <p class="text-xs text-slate-400 mb-4">{{ t('modals.familyManage.subtitle') }}</p>
@@ -1330,7 +1339,7 @@ const rejectProp = async (id: string) => {
     </dialog>
 
     <!-- Modal Confirm Delete Member -->
-    <dialog :class="isDeleteMemberModalOpen ? 'modal modal-open' : 'modal'">
+    <dialog :class="isDeleteMemberModalOpen ? 'modal modal-open' : 'modal'" :open="isDeleteMemberModalOpen">
       <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-rose-100 max-w-md">
         <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
           <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
