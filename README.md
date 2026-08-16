@@ -7,7 +7,7 @@
 
 **ACIS** is a secure, lightweight, and user-friendly household financial management web application. Designed for families to track cash flow, manage envelope-based budgets (virtual wallets), and handle expense approvals seamlessly via Web and Telegram Bot.
 
-> 🛡️ **Security First:** Built with strict adherence to **OWASP Top 10** standards, featuring passwordless authentication, context-aware distributed tracing, and secure session management.
+> 🛡️ **Security First:** Built with strict adherence to **OWASP Top 10** standards, featuring Telegram bot passwordless OTP authentication, composite `(email, phone_number)` identity keys with strict anti-reuse uniqueness, context-aware distributed query tracing, and secure rotating session cookies.
 
 ## 🚀 Tech Stack
 
@@ -16,7 +16,8 @@
 - **Framework:** Gin (HTTP Router)
 - **Database:** Native SQL via `sqlx` (PostgreSQL)
 - **Architecture:** Clean Architecture (Handler -> Service -> Repository) with Manual Dependency Injection
-- **Logging:** `zerolog` + `lumberjack` with custom `sqlx` wrapper for **Context-Aware Query Tracing** (Trace ID propagation from HTTP to DB layer)
+- **Logging:** `slog` + `lumberjack` with custom `sqlx` wrapper for **Context-Aware Query Tracing** (Trace ID propagation from HTTP to DB layer)
+- **Authentication:** Telegram Bot OTP Delivery, Composite Primary Key, Redis rate-limited AES-GCM encrypted OTPs
 
 ### Frontend (Monorepo: `apps/frontend`)
 - **Framework:** Vue 3 (Composition API, `<script setup>`)
@@ -29,19 +30,14 @@
 - **Migration:** Custom Go CLI tool for versioned SQL migrations
 - **Deployment:** Vercel (Frontend), Render/Railway (Backend)
 
-## ️ Architecture & Key Features
+## 🏗️ Architecture & Key Features
 This project uses a **Modular Monorepo** architecture. 
 
-### 🔍 Context-Aware Logging (Portfolio Highlight)
-Unlike standard ORMs, ACIS implements a **custom `sqlx` wrapper** (`internal/database/db.go`). This wrapper intercepts all database queries and automatically extracts the `X-Transaction-ID` from the Go `context.Context`. 
-- **Result:** Every HTTP request gets a unique Trace ID. When that request hits the database, the SQL query, arguments, and execution time are logged with the *exact same Trace ID*. 
-- **Benefit:** Makes debugging and auditing in production extremely easy (Distributed Tracing without heavy tools like Jaeger).
-
-##  Security & OWASP Compliance
-- **A01 Broken Access Control:** Strict RBAC middleware (Admin vs Member).
-- **A03 Injection:** 100% Parameterized queries via `sqlx` (`$1`, `$2`). No raw string concatenation.
-- **A07 Auth Failures:** JWT stored in `HttpOnly`, `Secure`, `SameSite=Strict` cookies. Short-lived tokens with refresh mechanism.
-- **A09 Security Logging:** Structured JSON logging with daily rotation. Sensitive data (passwords, OTPs) is never logged.
+### 🔐 Telegram Bot Authentication Flow
+1. User provides **Email** and **Phone Number** on the ACIS login screen.
+2. The combination `(email, phone_number)` serves as the primary key with uniqueness constraints on both columns to prevent cross-account reuse.
+3. User receives a 6-digit OTP directly on Telegram (if linked) or via Telegram bot deep link (`t.me/<bot_username>?start=auth_<token>`).
+4. Entering the OTP verifies the account, establishes HttpOnly rotating session cookies, and logs the user in.
 
 ## 🛠️ Local Development Setup (Windows)
 
@@ -50,7 +46,7 @@ Unlike standard ORMs, ACIS implements a **custom `sqlx` wrapper** (`internal/dat
 - [Node.js 20+](https://nodejs.org/)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-### 1. Clone & Start Database
+### 1. Clone & Start Database & Redis
 ```bash
 git clone https://github.com/Bainandhika/acis.git
 cd acis
@@ -59,23 +55,21 @@ docker-compose up -d
 
 ### 2. Run Database Migrations
 ```bash
-git clone https://github.com/Bainandhika/acis.git
-cd acis
-docker-compose up -d
+cd apps/backend
+go run ./cmd/migrate
 ```
 
 ### 3. Start Backend API
 ```bash
-# Copy .env.example to .env and configure
-go run cmd/api/main.go
+# Copy .env.example to .env and configure Telegram bot token
+go run ./cmd/api/main.go
 # API runs on http://localhost:8080
 ```
 
-### 3. Start Frontend
+### 4. Start Frontend
 ```bash
 cd apps/frontend
 npm install
 npm run dev
 # Frontend runs on http://localhost:5173
 ```
-
