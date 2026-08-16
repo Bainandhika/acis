@@ -141,6 +141,60 @@ func (h *FamilyHandler) CreateWallet(c *gin.Context) {
 	})
 }
 
+func (h *FamilyHandler) UpdateFamily(c *gin.Context) {
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+
+	var req UpdateFamilyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.svc.UpdateFamilyName(c.Request.Context(), fIDStr, req.Name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Family name updated successfully"})
+}
+
+func (h *FamilyHandler) UpdateWallet(c *gin.Context) {
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+	walletID := c.Param("id")
+
+	var req UpdateWalletReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	res, err := h.svc.UpdateWallet(c.Request.Context(), walletID, fIDStr, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Wallet updated successfully",
+		"data":    res,
+	})
+}
+
+func (h *FamilyHandler) DeleteWallet(c *gin.Context) {
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+	walletID := c.Param("id")
+
+	if err := h.svc.DeleteWallet(c.Request.Context(), walletID, fIDStr); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Wallet deleted successfully"})
+}
+
 func (h *FamilyHandler) GetWallets(c *gin.Context) {
 	familyID, _ := c.Get("family_id")
 	fIDStr, _ := familyID.(string)
