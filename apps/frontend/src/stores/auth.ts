@@ -3,7 +3,15 @@ import { ref, computed } from 'vue';
 import axios from 'axios';
 import apiClient from '../services/api';
 
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+export function getApiBaseUrl(): string {
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl) {
+        return envUrl.endsWith('/api/v1') ? envUrl : `${envUrl.replace(/\/$/, '')}/api/v1`;
+    }
+    return 'http://localhost:8080/api/v1';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 // --- Interfaces ---
 export interface User {
