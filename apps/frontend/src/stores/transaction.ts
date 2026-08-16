@@ -1,77 +1,125 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import {
-  getTransactions,
-  createTransaction,
-  getProposals,
-  createProposal,
-  approveProposal,
+import { 
+  getTransactions, 
+  createTransaction, 
+  getProposals, 
+  createProposal, 
+  approveProposal, 
   rejectProposal,
-  type Transaction,
-  type Proposal,
-  type CreateTransactionPayload,
-  type CreateProposalPayload
+  type Transaction, 
+  type Proposal, 
+  type CreateTransactionPayload, 
+  type CreateProposalPayload 
 } from '../services/transaction';
 
 export const useTransactionStore = defineStore('transaction', () => {
   const transactions = ref<Transaction[]>([]);
   const proposals = ref<Proposal[]>([]);
   const loading = ref(false);
+  const error = ref<string | null>(null);
 
   async function fetchTransactions() {
     loading.value = true;
+    error.value = null;
     try {
-      const { data } = await getTransactions();
-      transactions.value = data.data || [];
-    } catch (error) {
-      console.error('Failed to fetch transactions', error);
+      const response = await getTransactions();
+      transactions.value = response.data.data || [];
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to fetch transactions';
     } finally {
       loading.value = false;
     }
   }
 
   async function addTransaction(payload: CreateTransactionPayload) {
-    await createTransaction(payload);
-    await fetchTransactions();
+    loading.value = true;
+    error.value = null;
+    try {
+      await createTransaction(payload);
+      await fetchTransactions();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to record transaction';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function fetchProposals() {
     loading.value = true;
+    error.value = null;
     try {
-      const { data } = await getProposals();
-      proposals.value = data.data || [];
-    } catch (error) {
-      console.error('Failed to fetch proposals', error);
+      const response = await getProposals();
+      proposals.value = response.data.data || [];
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to fetch proposals';
     } finally {
       loading.value = false;
     }
   }
 
   async function addProposal(payload: CreateProposalPayload) {
-    await createProposal(payload);
-    await fetchProposals();
+    loading.value = true;
+    error.value = null;
+    try {
+      await createProposal(payload);
+      await fetchProposals();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to submit proposal';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function handleApprove(id: string) {
-    await approveProposal(id);
-    await fetchProposals();
-    await fetchTransactions();
+    loading.value = true;
+    error.value = null;
+    try {
+      await approveProposal(id);
+      await fetchProposals();
+      await fetchTransactions();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to approve proposal';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function handleReject(id: string) {
-    await rejectProposal(id);
-    await fetchProposals();
+    loading.value = true;
+    error.value = null;
+    try {
+      await rejectProposal(id);
+      await fetchProposals();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to reject proposal';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  function resetState() {
+    transactions.value = [];
+    proposals.value = [];
+    loading.value = false;
+    error.value = null;
   }
 
   return {
     transactions,
     proposals,
     loading,
+    error,
     fetchTransactions,
     addTransaction,
     fetchProposals,
     addProposal,
     handleApprove,
-    handleReject
+    handleReject,
+    resetState
   };
 });
