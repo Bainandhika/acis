@@ -28,7 +28,11 @@ func (h *FamilyHandler) CreateFamily(c *gin.Context) {
 		return
 	}
 
-	res, err := h.svc.CreateFamily(c.Request.Context(), uidStr, req.Name, req.MonthlyIncome)
+	var income float64
+	if req.MonthlyIncome != nil {
+		income = *req.MonthlyIncome
+	}
+	res, err := h.svc.CreateFamily(c.Request.Context(), uidStr, req.Name, income)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
