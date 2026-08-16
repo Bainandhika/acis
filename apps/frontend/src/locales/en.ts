@@ -57,6 +57,7 @@ export const en = {
   familySetup: {
     title: 'Family Workspace Setup',
     subtitle: 'Create a new family workspace or join an existing one using an invite code',
+    backToDashboard: 'Back',
     createTab: 'Create Workspace',
     joinTab: 'Join Workspace',
     familyNameLabel: 'Family Workspace Name',
@@ -109,6 +110,7 @@ export const en = {
     },
     family: {
       title: 'Family',
+      edit: 'Edit',
       subtitle: 'Workspace details and registered members',
       inviteCodeLabel: 'Invitation Code',
       membersLabel: 'Members',
