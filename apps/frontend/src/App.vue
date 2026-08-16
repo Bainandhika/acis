@@ -1,73 +1,103 @@
 <script setup lang="ts">
+import { useAuthStore } from './stores/auth'
 
+const authStore = useAuthStore()
 </script>
 
 <template>
+  <!-- Startup Loading Screen / Splash Animation -->
+  <Transition name="splash-fade">
+    <div 
+      v-if="!authStore.isInitialized" 
+      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#F8FAFC] overflow-hidden"
+    >
+      <!-- Background Ambient Glow -->
+      <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-300/30 rounded-full blur-3xl animate-pulse pointer-events-none"></div>
+      <div class="absolute bottom-1/4 right-1/3 w-80 h-80 bg-lime-300/20 rounded-full blur-3xl pointer-events-none"></div>
 
+      <!-- Center Logo & Branding -->
+      <div class="relative z-10 flex flex-col items-center text-center px-6">
+        <!-- Animated Brand Icon -->
+        <div class="relative mb-6">
+          <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-brand-500 to-lime-300 flex items-center justify-center shadow-2xl shadow-brand-500/40 text-white font-black text-4xl animate-bounce-slow">
+            A
+          </div>
+          <div class="absolute -inset-1 rounded-3xl bg-brand-400/20 blur-sm -z-10 animate-ping"></div>
+        </div>
 
-  <RouterView />
+        <h1 class="text-3xl font-black text-slate-900 tracking-tight mb-1">
+          ACIS
+        </h1>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">
+          Aplikasi Catatan Keuangan Istri / Suami
+        </p>
+
+        <!-- Progress Indicator -->
+        <div class="w-48 h-1.5 bg-slate-200/80 rounded-full overflow-hidden relative">
+          <div class="h-full bg-gradient-to-r from-brand-400 to-lime-400 rounded-full animate-indeterminate"></div>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <RouterView v-slot="{ Component }">
+    <Transition name="page-fade" mode="out-in">
+      <component :is="Component" />
+    </Transition>
+  </RouterView>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+<style>
+/* Splash screen transition */
+.splash-fade-enter-active,
+.splash-fade-leave-active {
+  transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+.splash-fade-leave-to {
+  opacity: 0;
+  transform: scale(1.02);
 }
 
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
+/* Page fade transition */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-nav a.router-link-exact-active {
-  color: var(--color-text);
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
 }
 
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
-}
-
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
-}
-
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
+@keyframes bounce-slow {
+  0%, 100% {
+    transform: translateY(0);
   }
-
-  .logo {
-    margin: 0 2rem 0 0;
+  50% {
+    transform: translateY(-6px);
   }
+}
 
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
+.animate-bounce-slow {
+  animation: bounce-slow 2.4s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%) scaleX(0.2);
   }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
+  50% {
+    transform: translateX(0%) scaleX(0.6);
   }
+  100% {
+    transform: translateX(100%) scaleX(0.2);
+  }
+}
+
+.animate-indeterminate {
+  animation: indeterminate 1.4s ease-in-out infinite;
+  transform-origin: left;
 }
 </style>
+
