@@ -3,7 +3,7 @@ export const en = {
   brand: {
     name: 'ACIS',
     tagline: 'Family',
-    subtagline: 'Smart Family Financial Management',
+    subtagline: 'Manajemen Keuangan Keluarga',
   },
   nav: {
     dashboard: 'Dashboard',
@@ -142,6 +142,10 @@ export const en = {
     subtitle: 'Allocate and monitor financial envelopes',
     addBtn: '+ Add New Wallet',
     noDescription: 'No description provided',
+    noWallets: 'No wallet envelopes created yet.',
+    createFirst: '+ Create First Wallet Envelope',
+    edit: 'Edit',
+    delete: 'Delete',
   },
 
   // Transaction History Tab
@@ -156,6 +160,9 @@ export const en = {
     categoryCol: 'Category',
     descriptionCol: 'Description',
     amountCol: 'Amount',
+    actionCol: 'Action',
+    delete: 'Delete',
+    noWalletsWarning: 'Please create at least one wallet before recording transactions.',
   },
 
   // Reports Tab
@@ -201,10 +208,41 @@ export const en = {
       save: 'Create Wallet',
       saving: 'Saving...',
     },
+    editWallet: {
+      title: 'Edit Wallet Envelope',
+      subtitle: 'Update envelope details and spending limit.',
+      nameLabel: 'Wallet Name',
+      namePlaceholder: 'e.g. Food & Groceries',
+      descLabel: 'Description (Optional)',
+      descPlaceholder: 'Monthly groceries & dining',
+      minLimitLabel: 'Min Limit (Rp)',
+      cancel: 'Cancel',
+      save: 'Save Changes',
+      saving: 'Saving...',
+    },
+    editFamily: {
+      title: 'Rename Family Workspace',
+      subtitle: 'Update your household workspace display name.',
+      nameLabel: 'Family Workspace Name',
+      namePlaceholder: 'e.g. Smith Family',
+      cancel: 'Cancel',
+      save: 'Save Name',
+      saving: 'Saving...',
+    },
+    confirmDelete: {
+      titleWallet: 'Delete Wallet Envelope',
+      descWallet: 'Are you sure you want to delete this wallet? All associated transactions will also be permanently deleted.',
+      titleTx: 'Delete Transaction',
+      descTx: 'Are you sure you want to delete this transaction? The wallet balance will be restored.',
+      cancel: 'Cancel',
+      confirm: 'Yes, Delete',
+      deleting: 'Deleting...',
+    },
     createTx: {
       title: 'Record Transaction',
       subtitle: 'Input direct expense or income transaction.',
       selectWallet: 'Select Wallet',
+      noWalletsAvailable: 'No wallets available. Create one first.',
       txType: 'Transaction Type',
       expenseOption: 'Expense (-)',
       incomeOption: 'Income (+)',
@@ -246,7 +284,11 @@ export const en = {
   // Toasts
   toasts: {
     walletCreated: 'New wallet envelope created!',
+    walletUpdated: 'Wallet envelope updated successfully!',
+    walletDeleted: 'Wallet envelope deleted!',
     txRecorded: 'Transaction recorded successfully!',
+    txDeleted: 'Transaction deleted and wallet balance restored!',
+    familyUpdated: 'Family workspace renamed successfully!',
     proposalSubmitted: 'Proposal submitted for Admin review!',
     proposalApproved: 'Proposal approved and wallet deducted!',
     proposalRejected: 'Proposal rejected',
