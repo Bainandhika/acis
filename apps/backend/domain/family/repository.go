@@ -24,10 +24,13 @@ type FamilyRepository interface {
 	UpdateTelegramChatID(ctx context.Context, familyID string, chatID *int64) error
 	FindByTelegramChatID(ctx context.Context, chatID int64) (*Family, error)
 	UpdateMonthlyIncome(ctx context.Context, familyID string, income float64) error
+	UpdateFamilyName(ctx context.Context, familyID string, name string) error
 
 	CreateWallet(ctx context.Context, wallet *Wallet) error
 	GetWalletsByFamilyID(ctx context.Context, familyID string) ([]Wallet, error)
 	GetWalletByID(ctx context.Context, walletID string) (*Wallet, error)
+	UpdateWallet(ctx context.Context, walletID string, name string, description *string, minimumLimit float64) error
+	DeleteWallet(ctx context.Context, walletID string, familyID string) error
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
 }
 
@@ -83,7 +86,12 @@ func (r *familyRepoImpl) AddMember(ctx context.Context, exec DBExecutor, m *Fami
 }
 
 func (r *familyRepoImpl) GetMembers(ctx context.Context, familyID string) ([]FamilyMember, error) {
-	query := `SELECT id, family_id, user_id, role, joined_at FROM family_members WHERE family_id = $1`
+	query := `SELECT fm.id, fm.family_id, fm.user_id, fm.role, fm.joined_at, 
+			  COALESCE(NULLIF(u.username, ''), NULLIF(u.name, ''), 'Member') AS user_name 
+			  FROM family_members fm 
+			  LEFT JOIN users u ON fm.user_id = u.id 
+			  WHERE fm.family_id = $1 
+			  ORDER BY fm.joined_at ASC`
 	var members []FamilyMember
 	err := r.db.SelectContext(ctx, &members, query, familyID)
 	return members, err
@@ -111,6 +119,12 @@ func (r *familyRepoImpl) UpdateMonthlyIncome(ctx context.Context, familyID strin
 	return err
 }
 
+func (r *familyRepoImpl) UpdateFamilyName(ctx context.Context, familyID string, name string) error {
+	query := `UPDATE families SET name = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, name, familyID)
+	return err
+}
+
 func (r *familyRepoImpl) CreateWallet(ctx context.Context, w *Wallet) error {
 	query := `INSERT INTO wallets (id, family_id, name, description, initial_balance, current_balance, minimum_limit, created_by) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING created_at, updated_at`
@@ -135,6 +149,18 @@ func (r *familyRepoImpl) GetWalletByID(ctx context.Context, walletID string) (*W
 		return nil, nil
 	}
 	return &w, err
+}
+
+func (r *familyRepoImpl) UpdateWallet(ctx context.Context, walletID string, name string, description *string, minimumLimit float64) error {
+	query := `UPDATE wallets SET name = $1, description = $2, minimum_limit = $3, updated_at = NOW() WHERE id = $4`
+	_, err := r.db.ExecContext(ctx, query, name, description, minimumLimit, walletID)
+	return err
+}
+
+func (r *familyRepoImpl) DeleteWallet(ctx context.Context, walletID string, familyID string) error {
+	query := `DELETE FROM wallets WHERE id = $1 AND family_id = $2`
+	_, err := r.db.ExecContext(ctx, query, walletID, familyID)
+	return err
 }
 
 func (r *familyRepoImpl) GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error) {
