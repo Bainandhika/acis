@@ -207,3 +207,23 @@ func (h *FamilyHandler) GetWallets(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": res})
 }
+
+func (h *FamilyHandler) RemoveMember(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	uidStr, ok := userID.(string)
+	if !ok || uidStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+	memberID := c.Param("id")
+
+	if err := h.svc.RemoveMember(c.Request.Context(), uidStr, memberID, fIDStr); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Member removed successfully"})
+}
