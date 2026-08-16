@@ -1,4 +1,4 @@
-package transaction
+ package transaction
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 type TransactionService interface {
 	CreateDirectTransaction(ctx context.Context, req CreateTransactionDTO) (*TransactionDTO, error)
+	DeleteTransaction(ctx context.Context, txID string, familyID string) error
 	GetTransactions(ctx context.Context, familyID string) ([]TransactionDTO, error)
 	CreateProposal(ctx context.Context, req CreateProposalDTO) (*ProposalDTO, error)
 	GetProposals(ctx context.Context, familyID string) ([]ProposalDTO, error)
@@ -90,6 +91,47 @@ func (s *transactionService) CreateDirectTransaction(ctx context.Context, req Cr
 		Description: record.Description,
 		CreatedAt:   record.CreatedAt,
 	}, nil
+}
+
+func (s *transactionService) DeleteTransaction(ctx context.Context, txID string, familyID string) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return errors.New("failed to start database transaction")
+	}
+	defer tx.Rollback()
+
+	record, err := s.repo.GetTransactionByID(ctx, txID)
+	if err != nil || record == nil {
+		return errors.New("transaction not found")
+	}
+
+	wallet, err := s.repo.GetWalletForUpdate(ctx, tx, record.WalletID)
+	if err != nil || wallet == nil {
+		return errors.New("associated wallet not found")
+	}
+	if wallet.FamilyID != familyID {
+		return errors.New("unauthorized transaction delete")
+	}
+
+	// Reverse the transaction's financial effect on the wallet
+	var newBalance float64
+	if record.Type == "expense" {
+		newBalance = wallet.CurrentBalance + record.Amount
+	} else if record.Type == "income" {
+		newBalance = wallet.CurrentBalance - record.Amount
+	} else {
+		newBalance = wallet.CurrentBalance
+	}
+
+	if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newBalance); err != nil {
+		return errors.New("failed to restore wallet balance")
+	}
+
+	if err := s.repo.DeleteTransaction(ctx, tx, txID); err != nil {
+		return errors.New("failed to delete transaction")
+	}
+
+	return tx.Commit()
 }
 
 func (s *transactionService) GetTransactions(ctx context.Context, familyID string) ([]TransactionDTO, error) {
