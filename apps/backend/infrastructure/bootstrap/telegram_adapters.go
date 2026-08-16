@@ -7,6 +7,7 @@ import (
 	"github.com/Bainandhika/acis/apps/backend/domain/family"
 	"github.com/Bainandhika/acis/apps/backend/domain/telegram"
 	"github.com/Bainandhika/acis/apps/backend/domain/transaction"
+	"github.com/Bainandhika/acis/apps/backend/shared/cache"
 )
 
 // roleFinderAdapter bridges authentication.RoleFinder to family.FamilyRepository
@@ -27,6 +28,52 @@ func (a *roleFinderAdapter) FindRoleByUserID(ctx context.Context, userID string)
 		return "", nil
 	}
 	return member.Role, nil
+}
+
+type authSessionAdapter struct {
+	otpCache *cache.OTPCache
+	authRepo authentication.AuthRepository
+}
+
+func NewAuthSessionAdapter(otpCache *cache.OTPCache, authRepo authentication.AuthRepository) telegram.AuthSessionResolver {
+	return &authSessionAdapter{
+		otpCache: otpCache,
+		authRepo: authRepo,
+	}
+}
+
+func (a *authSessionAdapter) ResolveAuthSession(ctx context.Context, sessionToken string, chatID int64) (string, error) {
+	if a.otpCache == nil {
+		return "", nil
+	}
+	session, err := a.otpCache.GetAuthSession(ctx, sessionToken)
+	if err != nil || session == nil {
+		return "", err
+	}
+
+	// If user exists with email + phone, update their telegram_chat_id
+	if a.authRepo != nil {
+		user, err := a.authRepo.FindByEmailAndPhone(ctx, session.Email, session.PhoneNumber)
+		if err == nil && user != nil {
+			_ = a.authRepo.UpdateTelegramChatID(ctx, user.ID, chatID)
+		}
+	}
+
+	return session.OTP, nil
+}
+
+func (a *authSessionAdapter) GetActiveOTP(ctx context.Context, email, phone string, chatID int64) (string, error) {
+	if a.otpCache == nil {
+		return "", nil
+	}
+	// If user exists, link chatID
+	if a.authRepo != nil {
+		user, err := a.authRepo.FindByEmailAndPhone(ctx, email, phone)
+		if err == nil && user != nil {
+			_ = a.authRepo.UpdateTelegramChatID(ctx, user.ID, chatID)
+		}
+	}
+	return "", nil
 }
 
 type telegramTxAdapter struct {
