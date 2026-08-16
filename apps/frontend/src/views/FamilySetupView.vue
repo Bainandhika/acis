@@ -50,8 +50,22 @@ const handleJoin = async () => {
     <div class="absolute bottom-1/4 left-1/4 w-80 h-80 bg-lime-200/30 rounded-full blur-3xl pointer-events-none"></div>
 
     <div class="card-neo w-full max-w-md p-8 relative z-10 border border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-xl">
-      <!-- Language Switcher in top right -->
-      <div class="flex justify-end mb-4">
+      <!-- Top Bar: Back to Dashboard (if already in family) + Language Switcher -->
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <button 
+            v-if="familyStore.family"
+            @click="router.push('/')"
+            class="px-2.5 py-1 rounded-xl bg-slate-100/90 hover:bg-slate-200/80 border border-slate-200/70 text-[11px] font-bold text-slate-700 hover:text-slate-900 transition-all flex items-center gap-1.5"
+            type="button"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            <span>{{ t('familySetup.backToDashboard') }}</span>
+          </button>
+        </div>
+
         <div class="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/70 text-[11px] font-bold">
           <button 
             @click="setLocale('en')"
@@ -59,7 +73,7 @@ const handleJoin = async () => {
             :class="locale === 'en' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
             type="button"
           >
-            🇬🇧 EN
+            EN
           </button>
           <button 
             @click="setLocale('id')"
@@ -67,7 +81,7 @@ const handleJoin = async () => {
             :class="locale === 'id' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
             type="button"
           >
-            🇮🇩 ID
+            ID
           </button>
         </div>
       </div>
