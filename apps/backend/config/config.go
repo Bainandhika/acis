@@ -50,14 +50,10 @@ type OTPConfig struct {
 	EncryptionKey string `yaml:"encryption_key"`
 }
 
-type EmailConfig struct {
-	APIKey string `yaml:"api_key"`
-	From   string `yaml:"from"`
-}
-
 type TelegramConfig struct {
 	BotToken      string `yaml:"bot_token"`
 	WebhookSecret string `yaml:"webhook_secret"`
+	BotUsername   string `yaml:"bot_username"`
 }
 
 type CORSConfig struct {
@@ -71,7 +67,6 @@ type Config struct {
 	Log      LogConfig      `yaml:"log"`
 	Redis    RedisConfig    `yaml:"redis"`
 	OTP      OTPConfig      `yaml:"otp"`
-	Email    EmailConfig    `yaml:"email"`
 	Telegram TelegramConfig `yaml:"telegram"`
 	CORS     CORSConfig     `yaml:"cors"`
 }
@@ -134,11 +129,8 @@ func Load(configPath string) *Config {
 	if tgSecret := os.Getenv("TELEGRAM_WEBHOOK_SECRET"); tgSecret != "" {
 		cfg.Telegram.WebhookSecret = tgSecret
 	}
-	if resendKey := os.Getenv("RESEND_API_KEY"); resendKey != "" {
-		cfg.Email.APIKey = resendKey
-	}
-	if cfg.Email.From == "" {
-		cfg.Email.From = "onboarding@resend.dev"
+	if tgUsername := os.Getenv("TELEGRAM_BOT_USERNAME"); tgUsername != "" {
+		cfg.Telegram.BotUsername = tgUsername
 	}
 	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
 		origins := strings.Split(corsEnv, ",")
@@ -198,13 +190,10 @@ func defaultFallback() *Config {
 			TTL:           "5m",
 			EncryptionKey: os.Getenv("OTP_ENCRYPTION_KEY"),
 		},
-		Email: EmailConfig{
-			APIKey: os.Getenv("RESEND_API_KEY"),
-			From:   "onboarding@resend.dev",
-		},
 		Telegram: TelegramConfig{
 			BotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
 			WebhookSecret: os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
+			BotUsername:   os.Getenv("TELEGRAM_BOT_USERNAME"),
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: allowedOrigins,
