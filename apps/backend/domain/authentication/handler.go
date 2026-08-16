@@ -25,15 +25,19 @@ func NewAuthHandler(authService AuthService, isProduction bool) *AuthHandler {
 func (h *AuthHandler) RequestOTP(c *gin.Context) {
 	var req RequestOTPReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email dan nomor telepon yang valid wajib diisi"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor telepon yang valid wajib diisi (+628 / 08)"})
 		return
 	}
 
 	resp, err := h.authService.RequestOTP(c.Request.Context(), req)
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrEmailMismatch), errors.Is(err, ErrPhoneMismatch), errors.Is(err, ErrAccountConflict):
+		case errors.Is(err, ErrInvalidPhoneFormat), errors.Is(err, ErrUsernameRequired):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, ErrPhoneAlreadyRegistered):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case errors.Is(err, ErrPhoneNotRegistered):
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		case errors.Is(err, ErrTooManyRequests):
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
 		default:
@@ -48,15 +52,15 @@ func (h *AuthHandler) RequestOTP(c *gin.Context) {
 func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	var req VerifyOTPReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email, nomor telepon, dan 6-digit OTP wajib diisi"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor telepon dan 6-digit OTP wajib diisi"})
 		return
 	}
 
 	resp, err := h.authService.VerifyOTP(c.Request.Context(), req)
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrEmailMismatch), errors.Is(err, ErrPhoneMismatch):
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case errors.Is(err, ErrInvalidPhoneFormat):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		}
