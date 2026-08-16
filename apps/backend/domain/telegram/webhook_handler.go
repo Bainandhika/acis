@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,7 +25,8 @@ func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
 	expectedSecret := os.Getenv("TELEGRAM_WEBHOOK_SECRET")
 	if expectedSecret != "" {
 		headerSecret := c.GetHeader("X-Telegram-Bot-Api-Secret-Token")
-		if headerSecret != expectedSecret {
+		// Use subtle.ConstantTimeCompare to avoid timing attack vulnerabilities
+		if subtle.ConstantTimeCompare([]byte(headerSecret), []byte(expectedSecret)) != 1 {
 			slog.Warn("Unauthorized Telegram webhook request: secret token mismatch")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized webhook token"})
 			c.Abort()
