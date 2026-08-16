@@ -3,7 +3,7 @@ export const id = {
   brand: {
     name: 'ACIS',
     tagline: 'Keluarga',
-    subtagline: 'Manajemen Keuangan Cerdas',
+    subtagline: 'Manajemen Keuangan Keluarga',
   },
   nav: {
     dashboard: 'Dasbor',
@@ -142,6 +142,10 @@ export const id = {
     subtitle: 'Alokasikan dan pantau amplop keuangan',
     addBtn: '+ Tambah Dompet Baru',
     noDescription: 'Tidak ada deskripsi',
+    noWallets: 'Belum ada amplop dompet dibuat.',
+    createFirst: '+ Buat Amplop Dompet Pertama',
+    edit: 'Ubah',
+    delete: 'Hapus',
   },
 
   // Transaction History Tab
@@ -156,6 +160,9 @@ export const id = {
     categoryCol: 'Kategori',
     descriptionCol: 'Deskripsi',
     amountCol: 'Jumlah',
+    actionCol: 'Aksi',
+    delete: 'Hapus',
+    noWalletsWarning: 'Silakan buat minimal satu dompet sebelum mencatat transaksi.',
   },
 
   // Reports Tab
@@ -201,10 +208,41 @@ export const id = {
       save: 'Buat Dompet',
       saving: 'Menyimpan...',
     },
+    editWallet: {
+      title: 'Ubah Amplop Dompet',
+      subtitle: 'Perbarui rincian amplop dan batas pengeluaran.',
+      nameLabel: 'Nama Dompet',
+      namePlaceholder: 'contoh: Makanan & Belanja',
+      descLabel: 'Deskripsi (Opsional)',
+      descPlaceholder: 'Kebutuhan bulanan & makan di luar',
+      minLimitLabel: 'Batas Minimum (Rp)',
+      cancel: 'Batal',
+      save: 'Simpan Perubahan',
+      saving: 'Menyimpan...',
+    },
+    editFamily: {
+      title: 'Ubah Nama Keluarga',
+      subtitle: 'Perbarui nama tampilan ruang kerja keluarga.',
+      nameLabel: 'Nama Ruang Kerja Keluarga',
+      namePlaceholder: 'contoh: Keluarga Smith',
+      cancel: 'Batal',
+      save: 'Simpan Nama',
+      saving: 'Menyimpan...',
+    },
+    confirmDelete: {
+      titleWallet: 'Hapus Amplop Dompet',
+      descWallet: 'Apakah Anda yakin ingin menghapus dompet ini? Semua transaksi terkait juga akan dihapus secara permanen.',
+      titleTx: 'Hapus Transaksi',
+      descTx: 'Apakah Anda yakin ingin menghapus transaksi ini? Saldo dompet akan dipulihkan secara otomatis.',
+      cancel: 'Batal',
+      confirm: 'Ya, Hapus',
+      deleting: 'Menghapus...',
+    },
     createTx: {
       title: 'Catat Transaksi',
       subtitle: 'Masukkan transaksi pengeluaran atau pemasukan langsung.',
       selectWallet: 'Pilih Dompet',
+      noWalletsAvailable: 'Belum ada dompet. Buat dompet terlebih dahulu.',
       txType: 'Jenis Transaksi',
       expenseOption: 'Pengeluaran (-)',
       incomeOption: 'Pemasukan (+)',
@@ -246,7 +284,11 @@ export const id = {
   // Toasts
   toasts: {
     walletCreated: 'Amplop dompet baru berhasil dibuat!',
+    walletUpdated: 'Amplop dompet berhasil diperbarui!',
+    walletDeleted: 'Amplop dompet berhasil dihapus!',
     txRecorded: 'Transaksi berhasil dicatat!',
+    txDeleted: 'Transaksi berhasil dihapus dan saldo dompet dipulihkan!',
+    familyUpdated: 'Nama keluarga berhasil diperbarui!',
     proposalSubmitted: 'Proposal diajukan untuk ditinjau oleh Admin!',
     proposalApproved: 'Proposal disetujui dan saldo dompet dipotong!',
     proposalRejected: 'Proposal ditolak',
