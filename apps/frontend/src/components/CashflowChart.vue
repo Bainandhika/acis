@@ -9,12 +9,10 @@ const props = defineProps<{
   totalExpense: number
 }>()
 
-const activePeriod = ref<'7d' | '30d' | 'all'>('7d')
+// Generate 7 days of historical cashflow data from actual transactions strictly (Mon - Sun / last 7 days)
+const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-// Generate 7 days of historical cashflow data from actual transactions or fallback model
-const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
-
-// Day-by-day simulated/calculated values for realistic bar chart visualization matching ACRU
+// Day-by-day calculation from real transactions
 const chartData = computed(() => {
   const now = new Date()
   const list = []
@@ -22,17 +20,18 @@ const chartData = computed(() => {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
-    const dayName = days[d.getDay()]
-    const dateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+    const dayName = dayLabels[d.getDay()]
+    const dateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
     
-    // Filter txs on this day
-    const dayTxs = props.transactions.filter(t => {
+    // Filter txs on this specific date
+    const dayTxs = (props.transactions || []).filter(t => {
+      if (!t?.created_at) return false
       const txDate = new Date(t.created_at)
       return txDate.toDateString() === d.toDateString()
     })
     
-    const dayIncome = dayTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-    const dayExpense = dayTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    const dayIncome = dayTxs.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0)
+    const dayExpense = dayTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)
     const daySavings = Math.max(0, dayIncome - dayExpense)
     
     list.push({
@@ -47,120 +46,129 @@ const chartData = computed(() => {
   return list
 })
 
-const hoveredIndex = ref<number | null>(3) // Default preview on Wed matching ACRU mockup
+// Tooltip / hover state: null by default (strictly disabled when cursor is outside the chart)
+const hoveredIndex = ref<number | null>(null)
 
-const formatRupiah = (val: number) => {
-  return new Intl.NumberFormat('id-ID', {
+// Max height computation for clean proportional bar rendering
+const maxAmountInPeriod = computed(() => {
+  let max = 0
+  chartData.value.forEach(d => {
+    if (d.income > max) max = d.income
+    if (d.expense > max) max = d.expense
+    if (d.savings > max) max = d.savings
+  })
+  return max > 0 ? max : 1
+})
+
+const getBarHeight = (amount: number, isHovered: boolean) => {
+  if (amount <= 0) return '0px'
+  const maxHeightPx = 80
+  const ratio = Math.min(amount / maxAmountInPeriod.value, 1)
+  const basePx = Math.max(Math.round(ratio * maxHeightPx), 6)
+  return `${isHovered ? basePx + 4 : basePx}px`
+}
+
+const formatCurrency = (val: number) => {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0
-  }).format(val)
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(val || 0)
 }
 </script>
 
 <template>
-  <div class="card-neo p-6 flex flex-col justify-between">
-    <!-- Top Row: Balance Header & Legend & Time Filter -->
+  <div class="card-neo p-6 flex flex-col justify-between" id="seven-day-cashflow-card">
+    <!-- Top Row: Balance Header & Legend -->
     <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
       <div>
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ringkasan Saldo Keseluruhan</p>
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overall Financial Summary</p>
         <div class="flex items-baseline gap-2 mt-1">
           <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            {{ formatRupiah(totalBalance) }}
+            {{ formatCurrency(totalBalance) }}
           </h2>
-          <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-              <polyline points="18 15 12 9 6 15"></polyline>
-            </svg>
-            Aktif
+          <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            7-Day View
           </span>
         </div>
       </div>
 
-      <!-- Filters & Legend matching ACRU -->
-      <div class="flex flex-wrap items-center gap-3">
-        <!-- Legend Pills -->
-        <div class="flex items-center gap-3 text-[11px] font-semibold text-slate-600 mr-1">
-          <div class="flex items-center gap-1.5">
-            <span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>
-            <span>Tabungan</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <span class="w-2.5 h-2.5 rounded-sm bg-brand-500"></span>
-            <span>Pemasukan</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <span class="w-2.5 h-2.5 rounded-sm bg-slate-200"></span>
-            <span>Pengeluaran</span>
-          </div>
+      <!-- Legend Pills -->
+      <div class="flex items-center gap-3 text-[11px] font-semibold text-slate-600">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-sm bg-amber-400"></span>
+          <span>Savings</span>
         </div>
-
-        <!-- Period dropdown / buttons -->
-        <div class="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
-          <button 
-            @click="activePeriod = '7d'" 
-            class="px-2.5 py-1 rounded-lg transition"
-            :class="activePeriod === '7d' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'"
-          >
-            7h
-          </button>
-          <button 
-            @click="activePeriod = '30d'" 
-            class="px-2.5 py-1 rounded-lg transition"
-            :class="activePeriod === '30d' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'"
-          >
-            30h
-          </button>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-sm bg-brand-500"></span>
+          <span>Income</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-sm bg-slate-300"></span>
+          <span>Expense</span>
         </div>
       </div>
     </div>
 
-    <!-- Chart Body with Stacked Segmented Bars and Interactive Tooltip -->
-    <div class="relative mt-8 h-48 flex items-end justify-between gap-2 sm:gap-4 pt-4 border-b border-slate-100">
+    <!-- Chart Body with Stacked Segmented Bars and Interactive Tooltip (Strictly disabled on mouseleave) -->
+    <div 
+      class="relative mt-8 h-48 flex items-end justify-between gap-2 sm:gap-4 pt-4 border-b border-slate-100"
+      @mouseleave="hoveredIndex = null"
+    >
       <div 
         v-for="(item, idx) in chartData" 
         :key="idx" 
         class="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
         @mouseenter="hoveredIndex = idx"
       >
-        <!-- Tooltip Popup (Matching ACRU's Wednesday 7 Jan popup) -->
+        <!-- Tooltip Popup: ONLY rendered when hoveredIndex === idx -->
         <div 
           v-if="hoveredIndex === idx" 
-          class="absolute -top-16 z-20 bg-slate-900 text-white rounded-xl p-2.5 shadow-xl text-[10px] w-36 pointer-events-none transition-all animate-fadeIn"
+          class="absolute -top-20 z-30 bg-slate-900 text-white rounded-xl p-2.5 shadow-xl text-[10px] w-40 pointer-events-none transition-all animate-fadeIn"
         >
           <p class="font-bold text-slate-300 border-b border-slate-700 pb-1 mb-1.5 flex justify-between">
             <span>{{ item.day }}, {{ item.date }}</span>
           </p>
           <div class="flex justify-between items-center text-amber-300 mb-0.5">
-            <span>• Tabungan</span>
-            <span class="font-mono font-bold">{{ formatRupiah(item.savings > 0 ? item.savings : totalBalance * 0.2) }}</span>
+            <span>• Savings</span>
+            <span class="font-mono font-bold">{{ formatCurrency(item.savings) }}</span>
           </div>
           <div class="flex justify-between items-center text-brand-300 mb-0.5">
-            <span>• Pemasukan</span>
-            <span class="font-mono font-bold">{{ formatRupiah(item.income > 0 ? item.income : totalIncome * 0.25) }}</span>
+            <span>• Income</span>
+            <span class="font-mono font-bold">{{ formatCurrency(item.income) }}</span>
           </div>
           <div class="flex justify-between items-center text-rose-300">
-            <span>• Pengeluaran</span>
-            <span class="font-mono font-bold">{{ formatRupiah(item.expense > 0 ? item.expense : totalExpense * 0.15) }}</span>
+            <span>• Expense</span>
+            <span class="font-mono font-bold">{{ formatCurrency(item.expense) }}</span>
           </div>
         </div>
 
-        <!-- Stacked Bar Column -->
+        <!-- Stacked Bar Column with actual proportional height -->
         <div class="w-full max-w-[36px] sm:max-w-[48px] flex flex-col rounded-xl overflow-hidden bg-slate-100/80 transition-all group-hover:ring-2 group-hover:ring-brand-400">
           <!-- Top segment (Savings) -->
           <div 
+            v-if="item.savings > 0"
             class="w-full bg-amber-400 transition-all duration-300"
-            :style="{ height: (idx === hoveredIndex ? '28px' : '16px') }"
+            :style="{ height: getBarHeight(item.savings, idx === hoveredIndex) }"
           ></div>
-          <!-- Middle segment (Income - vibrant lime) -->
+          <!-- Middle segment (Income) -->
           <div 
+            v-if="item.income > 0"
             class="w-full bg-brand-500 transition-all duration-300"
-            :style="{ height: (idx === hoveredIndex ? '64px' : '42px') }"
+            :style="{ height: getBarHeight(item.income, idx === hoveredIndex) }"
           ></div>
-          <!-- Bottom segment (Expenses - soft slate or coral) -->
+          <!-- Bottom segment (Expenses) -->
           <div 
+            v-if="item.expense > 0"
             class="w-full bg-slate-300 transition-all duration-300"
-            :style="{ height: (idx === hoveredIndex ? '20px' : '14px') }"
+            :style="{ height: getBarHeight(item.expense, idx === hoveredIndex) }"
+          ></div>
+          <!-- Empty Base Indicator when 0 -->
+          <div 
+            v-if="!item.hasData"
+            class="w-full h-1.5 bg-slate-200"
           ></div>
         </div>
 
