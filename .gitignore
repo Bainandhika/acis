@@ -1,4 +1,4 @@
-﻿# OS
+# OS
 Thumbs.db
 .DS_Store
 desktop.ini
@@ -43,5 +43,10 @@ logs/
 # Documentation
 plans/
 
+# Backups
+backups/
+*.sql.gz
+
 # Config
 *-config.yaml
+!*-config.yaml.example
