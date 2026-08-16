@@ -17,6 +17,7 @@ type FamilyMember struct {
 	ID       string    `db:"id" json:"id"`
 	FamilyID string    `db:"family_id" json:"family_id"`
 	UserID   string    `db:"user_id" json:"user_id"`
+	UserName *string   `db:"user_name" json:"user_name,omitempty"`
 	Role     string    `db:"role" json:"role"`
 	JoinedAt time.Time `db:"joined_at" json:"joined_at"`
 }
