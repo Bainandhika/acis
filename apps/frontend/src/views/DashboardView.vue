@@ -336,7 +336,7 @@ const handleSubmitEditFamily = async () => {
 
 // Modal actions - Create Transaction
 const openTxModal = () => {
-  if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
+  if ((walletStore.wallets || []).length > 0 && walletStore.wallets?.[0]) {
     newTx.value.wallet_id = selectedWalletId.value || walletStore.wallets[0].id
   } else {
     newTx.value.wallet_id = ''
