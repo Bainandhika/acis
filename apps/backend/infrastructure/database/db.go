@@ -26,6 +26,7 @@ func NewConnection(dsn string) (*AppDB, error) {
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
 
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
@@ -40,7 +41,7 @@ func NewAppDB(db *sqlx.DB) *AppDB {
 	return &AppDB{DB: db}
 }
 
-func logQuery(ctx context.Context, query string, args ...interface{}) {
+func logExecution(ctx context.Context, query string, duration time.Duration, err error) {
 	var traceID string
 	if tid, ok := ctx.Value("X-Transaction-ID").(string); ok {
 		traceID = tid
@@ -48,40 +49,55 @@ func logQuery(ctx context.Context, query string, args ...interface{}) {
 		traceID = "system"
 	}
 
-	start := time.Now()
+	durationMs := duration.Milliseconds()
 
-	defer func() {
-		duration := time.Since(start).Milliseconds()
+	if err != nil {
+		slog.Error("DB Query Failed",
+			slog.String("trace_id", traceID),
+			slog.String("query", query),
+			slog.Int64("duration_ms", durationMs),
+			slog.Any("error", err),
+		)
+	} else {
 		slog.Info("DB Query Executed",
 			slog.String("trace_id", traceID),
 			slog.String("query", query),
-			slog.Any("args", args),
-			slog.Int64("duration_ms", duration),
+			slog.Int64("duration_ms", durationMs),
 		)
-	}()
+	}
 }
 
 func (db *AppDB) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	logQuery(ctx, query, args...)
-	return db.DB.SelectContext(ctx, dest, query, args...)
+	start := time.Now()
+	err := db.DB.SelectContext(ctx, dest, query, args...)
+	logExecution(ctx, query, time.Since(start), err)
+	return err
 }
 
 func (db *AppDB) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	logQuery(ctx, query, args...)
-	return db.DB.GetContext(ctx, dest, query, args...)
+	start := time.Now()
+	err := db.DB.GetContext(ctx, dest, query, args...)
+	logExecution(ctx, query, time.Since(start), err)
+	return err
 }
 
 func (db *AppDB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	logQuery(ctx, query, args...)
-	return db.DB.ExecContext(ctx, query, args...)
+	start := time.Now()
+	res, err := db.DB.ExecContext(ctx, query, args...)
+	logExecution(ctx, query, time.Since(start), err)
+	return res, err
 }
 
 func (db *AppDB) QueryxContext(ctx context.Context, query string, args ...interface{}) (*sqlx.Rows, error) {
-	logQuery(ctx, query, args...)
-	return db.DB.QueryxContext(ctx, query, args...)
+	start := time.Now()
+	rows, err := db.DB.QueryxContext(ctx, query, args...)
+	logExecution(ctx, query, time.Since(start), err)
+	return rows, err
 }
 
 func (db *AppDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	logQuery(ctx, query, args...)
-	return db.DB.QueryRowContext(ctx, query, args...)
+	start := time.Now()
+	row := db.DB.QueryRowContext(ctx, query, args...)
+	logExecution(ctx, query, time.Since(start), nil)
+	return row
 }
