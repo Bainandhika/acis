@@ -3,7 +3,7 @@ export const en = {
   brand: {
     name: 'ACIS',
     tagline: 'Family',
-    subtagline: 'Manajemen Keuangan Keluarga',
+    subtagline: 'Family Finance Management',
   },
   nav: {
     dashboard: 'Dashboard',
@@ -15,6 +15,8 @@ export const en = {
     botOffline: 'Bot Offline',
     signOut: 'Sign Out',
     signOutConfirm: 'Are you sure you want to sign out?',
+    editProfile: 'Edit Workspace & Family',
+    userMenu: 'User Menu',
     inviteCode: 'Code',
     copied: 'Copied!',
     copyCode: 'Copy Invite Code',
@@ -23,7 +25,7 @@ export const en = {
   // Login View
   login: {
     title: 'Welcome to ACIS',
-    subtitle: 'Smart Family Finance Management',
+    subtitle: 'Family Finance Management',
     tabSignIn: 'Sign In',
     tabSignUp: 'Sign Up',
     usernameLabel: 'Username',
@@ -80,7 +82,7 @@ export const en = {
     financialSummary: {
       title: 'Overall Financial Summary',
       subtitle: 'Real cashflow performance for the last 7 days',
-      recordTxBtn: '+ Record Transaction',
+      recordTxBtn: 'Record Transaction',
       totalBalance: 'Total Balance',
       totalBalanceDesc: 'Sum of all active wallet envelopes',
       sevenDaysIncome: '7-Day Income',
@@ -95,15 +97,15 @@ export const en = {
     wallets: {
       title: 'Wallets',
       subtitle: 'Real active envelopes (e.g. Food & Groceries, Shopping, Fuel)',
-      addWalletBtn: '+ Add Wallet',
+      addWalletBtn: 'Add Wallet',
       noWallets: 'No wallets created yet.',
-      createFirst: '+ Create First Wallet Envelope',
+      createFirst: 'Create First Wallet Envelope',
       envelope: 'Envelope',
       currentBalance: 'Current Balance',
       minLimit: 'Min Limit',
     },
     expenseAnalysis: {
-      title: 'Expense Analysis by Category',
+      title: 'Allocation',
       subtitle: 'Distribution of actual expenses across categories',
       totalExpenses: 'Total 7-Day Expenses',
       noExpenses: 'No expense transactions recorded in the last 7 days.',
@@ -142,10 +144,10 @@ export const en = {
   walletsTab: {
     title: 'Manage Wallet Envelopes',
     subtitle: 'Allocate and monitor financial envelopes',
-    addBtn: '+ Add New Wallet',
+    addBtn: 'Add New Wallet',
     noDescription: 'No description provided',
     noWallets: 'No wallet envelopes created yet.',
-    createFirst: '+ Create First Wallet Envelope',
+    createFirst: 'Create First Wallet Envelope',
     edit: 'Edit',
     delete: 'Delete',
   },
@@ -154,7 +156,7 @@ export const en = {
   transactionsTab: {
     title: 'Transaction History',
     subtitle: 'Complete log of all income and expenses',
-    recordBtn: '+ Record Transaction',
+    recordBtn: 'Record Transaction',
     noTransactions: 'No transactions found.',
     timestampCol: 'Timestamp',
     walletCol: 'Wallet',
@@ -183,8 +185,8 @@ export const en = {
   submissionsTab: {
     title: 'Transaction Submission & Proposals',
     subtitle: 'Submit new transactions or expense proposals for Admin approval',
-    recordDirectBtn: '+ Record Direct Transaction',
-    submitProposalBtn: '+ Submit Proposal',
+    recordDirectBtn: 'Record Direct Transaction',
+    submitProposalBtn: 'Submit Proposal',
     proposalsTitle: 'Submitted Expense Proposals',
     noProposals: 'No expense proposals submitted yet.',
     pending: 'Pending',
