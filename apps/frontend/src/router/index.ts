@@ -36,7 +36,7 @@ const router = createRouter({
 });
 
 // Navigation Guard with silent refresh support on initialization
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to, _from) => {
   const authStore = useAuthStore();
 
   // Try silent refresh once on initial application load if unauthenticated
@@ -52,11 +52,9 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next({ name: 'Login' });
+    return { name: 'Login' };
   } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next({ name: 'Dashboard' });
-  } else {
-    next();
+    return { name: 'Dashboard' };
   }
 });
 
