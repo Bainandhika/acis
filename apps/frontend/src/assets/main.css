@@ -28,3 +28,23 @@
 .card-neo {
   @apply bg-white rounded-3xl border border-slate-100/90 shadow-card transition-all duration-200 hover:shadow-card-hover;
 }
+
+/* Modal fix for DaisyUI */
+.modal.modal-open,
+.modal[open],
+.modal:popover-open,
+.modal:target {
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+.modal.modal-open > .modal-box,
+.modal[open] > .modal-box,
+.modal:popover-open > .modal-box {
+  opacity: 1 !important;
+  scale: 100% !important;
+  pointer-events: auto !important;
+}
