@@ -11,13 +11,15 @@ import (
 type BotService struct {
 	txService     TransactionService
 	familyService FamilyService
+	authResolver  AuthSessionResolver
 	client        *Client
 }
 
-func NewBotService(txService TransactionService, familyService FamilyService, client *Client) *BotService {
+func NewBotService(txService TransactionService, familyService FamilyService, authResolver AuthSessionResolver, client *Client) *BotService {
 	return &BotService{
 		txService:     txService,
 		familyService: familyService,
+		authResolver:  authResolver,
 		client:        client,
 	}
 }
@@ -35,6 +37,10 @@ func (s *BotService) ProcessUpdate(ctx context.Context, update *TelegramUpdate) 
 
 	command := strings.ToLower(parts[0])
 	switch command {
+	case "/start":
+		return s.handleStart(ctx, update, parts)
+	case "/otp":
+		return s.handleOTP(ctx, update, parts)
 	case "/catat":
 		return s.handleCatat(ctx, update, parts)
 	case "/saldo":
@@ -42,8 +48,51 @@ func (s *BotService) ProcessUpdate(ctx context.Context, update *TelegramUpdate) 
 	case "/link":
 		return s.handleLink(ctx, update, parts)
 	default:
-		return "Perintah tidak dikenali. Gunakan `/catat [wallet_id] [nominal] [keterangan]`, `/saldo`, atau `/link [invite_code]`.", nil
+		return "Perintah tidak dikenali. Gunakan `/start`, `/otp [email] [phone]`, `/catat [wallet_id] [nominal] [keterangan]`, `/saldo`, atau `/link [invite_code]`.", nil
 	}
+}
+
+func (s *BotService) handleStart(ctx context.Context, update *TelegramUpdate, parts []string) (string, error) {
+	chatID := update.Message.Chat.ID
+	if len(parts) > 1 {
+		token := parts[1]
+		if strings.HasPrefix(token, "auth_") {
+			if s.authResolver != nil {
+				otp, err := s.authResolver.ResolveAuthSession(ctx, token, chatID)
+				if err != nil || otp == "" {
+					return "⚠️ Sesi otentikasi tidak ditemukan atau telah kedaluwarsa. Silakan minta kode OTP baru di halaman login ACIS.", nil
+				}
+				return fmt.Sprintf("🔐 *Kode Masuk ACIS*\n\nKode OTP Anda adalah: *%s*\n\nBerlaku selama 5 menit. Masukkan kode ini pada halaman login ACIS untuk melanjutkan.", otp), nil
+			}
+		}
+	}
+
+	return "👋 *Halo! Selamat datang di ACIS Bot (Aplikasi Catatan Keuangan Istri/Suami).*\n\n" +
+		"Bot ini membantu Anda menerima kode OTP login dan mencatat transaksi keluarga secara instan.\n\n" +
+		"🔹 Gunakan `/otp [email] [nomor_hp]` untuk mengambil kode OTP login Anda.\n" +
+		"🔹 Gunakan `/link [invite_code]` untuk menghubungkan bot ke grup keluarga Anda.\n" +
+		"🔹 Gunakan `/saldo` untuk melihat saldo dompet keluarga.\n" +
+		"🔹 Gunakan `/catat [wallet_id] [nominal] [keterangan]` untuk mencatat pengeluaran.", nil
+}
+
+func (s *BotService) handleOTP(ctx context.Context, update *TelegramUpdate, parts []string) (string, error) {
+	if len(parts) < 3 {
+		return "Format salah. Gunakan: `/otp [email] [nomor_hp]`\nContoh: `/otp user@keluarga.com +6281234567890`", nil
+	}
+
+	email := parts[1]
+	phone := parts[2]
+	chatID := update.Message.Chat.ID
+
+	if s.authResolver != nil {
+		otp, err := s.authResolver.GetActiveOTP(ctx, email, phone, chatID)
+		if err != nil || otp == "" {
+			return "⚠️ Tidak ada kode OTP aktif untuk email dan nomor telepon tersebut. Silakan klik 'Minta Kode OTP Telegram' di halaman login ACIS terlebih dahulu.", nil
+		}
+		return fmt.Sprintf("🔐 *Kode Masuk ACIS*\n\nKode OTP Anda adalah: *%s*\n\nBerlaku selama 5 menit. Masukkan kode ini pada form login ACIS.", otp), nil
+	}
+
+	return "⚠️ Layanan OTP sementara tidak tersedia.", nil
 }
 
 func (s *BotService) handleLink(ctx context.Context, update *TelegramUpdate, parts []string) (string, error) {
