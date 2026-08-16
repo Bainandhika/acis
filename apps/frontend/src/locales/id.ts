@@ -222,14 +222,22 @@ export const id = {
       save: 'Simpan Perubahan',
       saving: 'Menyimpan...',
     },
-    editFamily: {
-      title: 'Ubah Nama Keluarga',
-      subtitle: 'Perbarui nama tampilan keluarga keluarga.',
-      nameLabel: 'Nama Keluarga Keluarga',
+    familyManage: {
+      title: 'Pengaturan Keluarga',
+      subtitle: 'Perbarui nama keluarga dan kelola anggota keluarga.',
+      nameLabel: 'Nama Keluarga',
       namePlaceholder: 'contoh: Keluarga Smith',
-      cancel: 'Batal',
-      save: 'Simpan Nama',
-      saving: 'Menyimpan...',
+      saveName: 'Simpan Nama',
+      savingName: 'Menyimpan...',
+      membersTitle: 'Anggota',
+      youBadge: 'Anda',
+      removeMember: 'Hapus',
+      confirmRemoveTitle: 'Keluarkan Anggota',
+      confirmRemoveDesc: 'Apakah Anda yakin ingin mengeluarkan {name} dari keluarga? Mereka tidak akan dapat mengakses keuangan keluarga lagi.',
+      confirmRemoveBtn: 'Ya, Keluarkan',
+      removingBtn: 'Mengeluarkan...',
+      permissionDenied: 'Hanya admin keluarga yang dapat mengelola keluarga ini.',
+      cancel: 'Tutup',
     },
     confirmDelete: {
       titleWallet: 'Hapus Amplop Dompet',
@@ -296,5 +304,7 @@ export const id = {
     proposalRejected: 'Proposal ditolak',
     botDisconnected: 'Bot Telegram berhasil diputuskan',
     botDisconnectFailed: 'Gagal memutuskan bot Telegram',
+    memberRemoved: 'Anggota keluarga berhasil dikeluarkan!',
+    memberRemoveFailed: 'Gagal mengeluarkan anggota keluarga.',
   }
 };
