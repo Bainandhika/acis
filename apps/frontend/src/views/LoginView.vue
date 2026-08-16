@@ -123,9 +123,11 @@ const handleVerifyOTP = async () => {
 
       <!-- Logo Header -->
       <div class="flex flex-col items-center text-center mb-6">
-        <div class="w-14 h-14 rounded-3xl bg-gradient-to-tr from-brand-500 to-lime-300 flex items-center justify-center shadow-lg shadow-brand-500/30 text-white font-black text-2xl mb-4">
-          A
-        </div>
+        <img 
+          src="/logo.png" 
+          alt="ACIS Logo" 
+          class="w-16 h-16 rounded-2xl shadow-lg shadow-brand-500/20 object-cover mb-4"
+        />
         <h2 class="text-2xl font-black text-slate-900 tracking-tight">
           {{ t('login.title') }}
         </h2>
