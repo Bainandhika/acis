@@ -23,6 +23,12 @@ type OTPEntry struct {
 	LockoutUntil  time.Time `json:"lockout_until"`
 }
 
+type AuthSessionData struct {
+	Email       string `json:"email"`
+	PhoneNumber string `json:"phone_number"`
+	OTP         string `json:"otp"`
+}
+
 type OTPCache struct {
 	client    redis.Cmdable
 	secretKey string
@@ -35,16 +41,16 @@ func NewOTPCache(client redis.Cmdable, secretKey string) *OTPCache {
 	}
 }
 
-func (o *OTPCache) getKey(email string) string {
-	return "otp:" + email
+func (o *OTPCache) getKey(email, phone string) string {
+	return fmt.Sprintf("otp:%s:%s", email, phone)
 }
 
-func (o *OTPCache) getRateKey(email string) string {
-	return "otp:rate:" + email
+func (o *OTPCache) getRateKey(email, phone string) string {
+	return fmt.Sprintf("otp:rate:%s:%s", email, phone)
 }
 
-// StoreOTP encrypts the OTP using AES-GCM and stores only the encrypted payload in standalone Redis with configurable TTL
-func (o *OTPCache) StoreOTP(ctx context.Context, email, plainCode string, ttl time.Duration) error {
+// StoreOTP encrypts the OTP using AES-GCM and stores only the encrypted payload in Redis
+func (o *OTPCache) StoreOTP(ctx context.Context, email, phone, plainCode string, ttl time.Duration) error {
 	if ttl <= 0 {
 		ttl = 5 * time.Minute
 	}
@@ -64,12 +70,12 @@ func (o *OTPCache) StoreOTP(ctx context.Context, email, plainCode string, ttl ti
 		return err
 	}
 
-	return o.client.Set(ctx, o.getKey(email), data, ttl).Err()
+	return o.client.Set(ctx, o.getKey(email, phone), data, ttl).Err()
 }
 
-// CanRequestOTP checks rate limits using standalone Redis
-func (o *OTPCache) CanRequestOTP(ctx context.Context, email string) (bool, error) {
-	key := o.getRateKey(email)
+// CanRequestOTP checks rate limits per (email, phone)
+func (o *OTPCache) CanRequestOTP(ctx context.Context, email, phone string) (bool, error) {
+	key := o.getRateKey(email, phone)
 	count, err := o.client.Incr(ctx, key).Result()
 	if err != nil {
 		return false, err
@@ -77,15 +83,15 @@ func (o *OTPCache) CanRequestOTP(ctx context.Context, email string) (bool, error
 	if count == 1 {
 		o.client.Expire(ctx, key, 15*time.Minute)
 	}
-	if count > 3 {
+	if count > 5 {
 		return false, nil
 	}
 	return true, nil
 }
 
 // VerifyOTP fetches the encrypted OTP payload from Redis, decrypts it, and verifies match
-func (o *OTPCache) VerifyOTP(ctx context.Context, email, plainCode string) (bool, error) {
-	key := o.getKey(email)
+func (o *OTPCache) VerifyOTP(ctx context.Context, email, phone, plainCode string) (bool, error) {
+	key := o.getKey(email, phone)
 	val, err := o.client.Get(ctx, key).Result()
 	if errors.Is(err, redis.Nil) {
 		return false, ErrOTPNotFound
@@ -129,6 +135,38 @@ func (o *OTPCache) VerifyOTP(ctx context.Context, email, plainCode string) (bool
 	return false, fmt.Errorf("%w: %d attempts remaining", ErrInvalidOTP, entry.AttemptsLeft)
 }
 
-func (o *OTPCache) Delete(ctx context.Context, email string) error {
-	return o.client.Del(ctx, o.getKey(email)).Err()
+// StoreAuthSession maps an auth session token (e.g. auth_abc123) to email, phone, and otp for Telegram deep links
+func (o *OTPCache) StoreAuthSession(ctx context.Context, sessionToken, email, phone, otp string, ttl time.Duration) error {
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	data, err := json.Marshal(AuthSessionData{
+		Email:       email,
+		PhoneNumber: phone,
+		OTP:         otp,
+	})
+	if err != nil {
+		return err
+	}
+	return o.client.Set(ctx, "auth:session:"+sessionToken, data, ttl).Err()
+}
+
+// GetAuthSession retrieves and deletes an auth session token
+func (o *OTPCache) GetAuthSession(ctx context.Context, sessionToken string) (*AuthSessionData, error) {
+	val, err := o.client.Get(ctx, "auth:session:"+sessionToken).Result()
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	var session AuthSessionData
+	if err := json.Unmarshal([]byte(val), &session); err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+func (o *OTPCache) Delete(ctx context.Context, email, phone string) error {
+	return o.client.Del(ctx, o.getKey(email, phone)).Err()
 }
