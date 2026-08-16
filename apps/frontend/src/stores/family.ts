@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { getMyFamily, createFamily, joinFamily, updateFamilyName, updateFamilySettings, disconnectTelegram, type Family } from '../services/family';
+import { getMyFamily, createFamily, joinFamily, updateFamilyName, updateFamilySettings, disconnectTelegram, removeMember, type Family } from '../services/family';
 
 export const useFamilyStore = defineStore('family', () => {
   const family = ref<Family | null>(null);
@@ -99,6 +99,22 @@ export const useFamilyStore = defineStore('family', () => {
     }
   }
 
+  async function handleRemoveMember(memberId: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await removeMember(memberId);
+      if (family.value && family.value.members) {
+        family.value.members = family.value.members.filter(m => m.id !== memberId);
+      }
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to remove family member';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function resetState() {
     family.value = null;
     loading.value = false;
@@ -115,6 +131,7 @@ export const useFamilyStore = defineStore('family', () => {
     handleJoinFamily, 
     handleUpdateSettings, 
     handleDisconnectTelegram,
+    handleRemoveMember,
     resetState
   };
 });
