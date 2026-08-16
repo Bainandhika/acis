@@ -43,9 +43,9 @@ type FamilyDTO struct {
 }
 
 type FamilyMemberDTO struct {
-	ID       string `json:"id"`
-	UserID   string `json:"user_id"`
-	Role     string `json:"role"`
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
 }
 
 type TransactionService interface {
@@ -58,4 +58,9 @@ type FamilyService interface {
 	FindByTelegramChatID(ctx context.Context, chatID int64) (*FamilyDTO, error)
 	LinkTelegramChatID(ctx context.Context, inviteCode string, chatID int64) error
 	GetMembers(ctx context.Context, familyID string) ([]FamilyMemberDTO, error)
+}
+
+type AuthSessionResolver interface {
+	ResolveAuthSession(ctx context.Context, sessionToken string, chatID int64) (string, error)
+	GetActiveOTP(ctx context.Context, email, phone string, chatID int64) (string, error)
 }
