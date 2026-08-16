@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { getWallets, createWallet, type Wallet, type CreateWalletPayload } from '../services/wallet';
+import { getWallets, createWallet, updateWallet, deleteWallet, type Wallet, type CreateWalletPayload, type UpdateWalletPayload } from '../services/wallet';
 
 export const useWalletStore = defineStore('wallet', () => {
   const wallets = ref<Wallet[]>([]);
@@ -34,11 +34,40 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
+  async function editWallet(id: string, payload: UpdateWalletPayload) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await updateWallet(id, payload);
+      await fetchWallets();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to update wallet';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function removeWallet(id: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await deleteWallet(id);
+      await fetchWallets();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to delete wallet';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function resetState() {
     wallets.value = [];
     loading.value = false;
     error.value = null;
   }
 
-  return { wallets, loading, error, fetchWallets, addWallet, resetState };
+  return { wallets, loading, error, fetchWallets, addWallet, editWallet, removeWallet, resetState };
 });
+
