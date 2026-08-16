@@ -11,11 +11,11 @@ export const useFamilyStore = defineStore('family', () => {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await getMyFamily();
-      family.value = data.data;
+      const response = await getMyFamily();
+      family.value = response.data;
     } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to fetch family profile';
       family.value = null;
-      error.value = err.response?.data?.error || 'Failed to fetch family';
     } finally {
       loading.value = false;
     }
@@ -25,11 +25,10 @@ export const useFamilyStore = defineStore('family', () => {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await createFamily(name, monthlyIncome);
-      family.value = data.data;
-      await fetchMyFamily();
+      const response = await createFamily(name, monthlyIncome);
+      family.value = response.data.data;
     } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to create family';
+      error.value = err.response?.data?.error || 'Failed to create family group';
       throw err;
     } finally {
       loading.value = false;
@@ -40,11 +39,10 @@ export const useFamilyStore = defineStore('family', () => {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await joinFamily(inviteCode);
-      family.value = data.data;
-      await fetchMyFamily();
+      const response = await joinFamily(inviteCode);
+      family.value = response.data.data;
     } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to join family';
+      error.value = err.response?.data?.error || 'Invalid or expired invite code';
       throw err;
     } finally {
       loading.value = false;
@@ -56,9 +54,11 @@ export const useFamilyStore = defineStore('family', () => {
     error.value = null;
     try {
       await updateFamilySettings(monthlyIncome);
-      await fetchMyFamily();
+      if (family.value) {
+        family.value.monthly_income = monthlyIncome;
+      }
     } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to update settings';
+      error.value = err.response?.data?.error || 'Failed to update family settings';
       throw err;
     } finally {
       loading.value = false;
@@ -70,13 +70,21 @@ export const useFamilyStore = defineStore('family', () => {
     error.value = null;
     try {
       await disconnectTelegram();
-      await fetchMyFamily();
+      if (family.value) {
+        family.value.telegram_chat_id = undefined;
+      }
     } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to disconnect Telegram';
+      error.value = err.response?.data?.error || 'Failed to disconnect Telegram bot';
       throw err;
     } finally {
       loading.value = false;
     }
+  }
+
+  function resetState() {
+    family.value = null;
+    loading.value = false;
+    error.value = null;
   }
 
   return { 
@@ -87,6 +95,7 @@ export const useFamilyStore = defineStore('family', () => {
     handleCreateFamily, 
     handleJoinFamily, 
     handleUpdateSettings, 
-    handleDisconnectTelegram 
+    handleDisconnectTelegram,
+    resetState
   };
 });
