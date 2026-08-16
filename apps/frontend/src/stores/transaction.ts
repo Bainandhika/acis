@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { 
   getTransactions, 
   createTransaction, 
+  deleteTransaction,
   getProposals, 
   createProposal, 
   approveProposal, 
@@ -102,6 +103,20 @@ export const useTransactionStore = defineStore('transaction', () => {
     }
   }
 
+  async function removeTransaction(id: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await deleteTransaction(id);
+      await fetchTransactions();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to delete transaction';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function resetState() {
     transactions.value = [];
     proposals.value = [];
@@ -116,6 +131,7 @@ export const useTransactionStore = defineStore('transaction', () => {
     error,
     fetchTransactions,
     addTransaction,
+    removeTransaction,
     fetchProposals,
     addProposal,
     handleApprove,
