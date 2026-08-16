@@ -8,7 +8,7 @@ const API_BASE_URL = getApiBaseUrl();
 // --- Interfaces ---
 export interface User {
     id: string;
-    email: string;
+    username: string;
     phone_number: string;
     name: string;
     role: 'admin' | 'member';
@@ -22,9 +22,9 @@ export interface AuthResponse {
 }
 
 export interface OTPRequestPayload {
-    email: string;
-    telegram_identifier: string;
-    phone_number?: string;
+    phone_number: string;
+    username?: string;
+    action?: 'login' | 'register';
 }
 
 export interface OTPRequestResponse {
@@ -37,10 +37,10 @@ export interface OTPRequestResponse {
 }
 
 export interface VerifyOTPPayload {
-    email: string;
-    telegram_identifier: string;
-    phone_number?: string;
+    phone_number: string;
     otp: string;
+    username?: string;
+    action?: 'login' | 'register';
 }
 
 // In-memory token reference accessible synchronously across modules
@@ -76,26 +76,26 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     // Actions (Methods)
-    async function requestOTP(email: string, telegramIdentifier: string): Promise<OTPRequestResponse> {
+    async function requestOTP(phoneNumber: string, username?: string, action: 'login' | 'register' = 'login'): Promise<OTPRequestResponse> {
         const { data } = await apiClient.post<OTPRequestResponse>(
             '/authentication/request-otp',
             { 
-                email, 
-                telegram_identifier: telegramIdentifier,
-                phone_number: telegramIdentifier 
+                phone_number: phoneNumber,
+                username: username || undefined,
+                action,
             } as OTPRequestPayload
         );
         return data;
     }
 
-    async function verifyOTP(email: string, telegramIdentifier: string, code: string): Promise<void> {
+    async function verifyOTP(phoneNumber: string, code: string, username?: string, action?: 'login' | 'register'): Promise<void> {
         const { data } = await apiClient.post<AuthResponse>(
             '/authentication/verify-otp',
             { 
-                email, 
-                telegram_identifier: telegramIdentifier,
-                phone_number: telegramIdentifier,
-                otp: code 
+                phone_number: phoneNumber,
+                otp: code,
+                username: username || undefined,
+                action,
             } as VerifyOTPPayload
         );
 
