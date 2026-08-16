@@ -15,9 +15,20 @@ type UpdateFamilySettingsReq struct {
 	MonthlyIncome *float64 `json:"monthly_income"`
 }
 
+type UpdateFamilyReq struct {
+	Name string `json:"name" binding:"required,min=2,max=255"`
+}
+
+type UpdateWalletReq struct {
+	Name         string  `json:"name" binding:"required,min=2,max=255"`
+	Description  *string `json:"description"`
+	MinimumLimit float64 `json:"minimum_limit"`
+}
+
 type FamilyMemberDTO struct {
 	ID       string    `json:"id"`
 	UserID   string    `json:"user_id"`
+	UserName string    `json:"user_name,omitempty"`
 	Role     string    `json:"role"`
 	JoinedAt time.Time `json:"joined_at"`
 }
