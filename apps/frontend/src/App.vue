@@ -19,9 +19,11 @@ const authStore = useAuthStore()
       <div class="relative z-10 flex flex-col items-center text-center px-6">
         <!-- Animated Brand Icon -->
         <div class="relative mb-6">
-          <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-brand-500 to-lime-300 flex items-center justify-center shadow-2xl shadow-brand-500/40 text-white font-black text-4xl animate-bounce-slow">
-            A
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="ACIS Logo" 
+            class="w-20 h-20 rounded-3xl shadow-2xl shadow-brand-500/40 object-cover animate-bounce-slow"
+          />
           <div class="absolute -inset-1 rounded-3xl bg-brand-400/20 blur-sm -z-10 animate-ping"></div>
         </div>
 
