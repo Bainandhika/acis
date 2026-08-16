@@ -63,6 +63,7 @@ func (i *IPRateLimiter) cleanupStaleVisitors() {
 	}
 }
 
+// RateLimitMiddleware provides general token-bucket rate limiting
 func RateLimitMiddleware(limiter *IPRateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := c.ClientIP()
@@ -86,6 +87,7 @@ func RateLimitMiddleware(limiter *IPRateLimiter) gin.HandlerFunc {
 	}
 }
 
+// NativeRateLimitMiddleware provides rate limiting using shared token bucket cache
 func NativeRateLimitMiddleware(limiter *cache.TokenBucketLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := c.ClientIP()
@@ -99,6 +101,24 @@ func NativeRateLimitMiddleware(limiter *cache.TokenBucketLimiter) gin.HandlerFun
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "too many requests, please slow down",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// AuthRateLimitMiddleware provides stricter rate limiting for sensitive endpoints like OTP request & verify
+func AuthRateLimitMiddleware(limiter *cache.TokenBucketLimiter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key := "auth:" + c.ClientIP()
+
+		if !limiter.Allow(key) {
+			c.Header("Retry-After", "60")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "too many authentication attempts, please wait a moment",
 			})
 			c.Abort()
 			return
