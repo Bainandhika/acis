@@ -465,7 +465,7 @@ const rejectProp = async (id: string) => {
                   </span>
                   <button 
                     v-if="isAdmin"
-                    @click="openEditFamilyModal"
+                    @click="router.push('/family-setup')"
                     class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition text-xs flex items-center gap-1 font-bold"
                     :title="t('modals.editFamily.title')"
                   >
@@ -473,7 +473,7 @@ const rejectProp = async (id: string) => {
                       <path d="M12 20h9"></path>
                       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                     </svg>
-                    <span class="text-[10px]">Ubah</span>
+                    <span class="text-[10px]">{{ t('dashboard.family.edit') }}</span>
                   </button>
                 </div>
                 <h2 class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mt-2">
