@@ -4,7 +4,15 @@ import axios, {
     type AxiosResponse,
     type AxiosError
 } from 'axios';
-import { getAccessToken, useAuthStore, type AuthResponse, getApiBaseUrl } from '../stores/auth';
+import { getAccessToken, useAuthStore, type AuthResponse } from '../stores/auth';
+// Base API URL helper reading from import.meta.env (Vite environment variables)
+export function getApiBaseUrl(): string {
+    const envUrl = typeof import.meta !== 'undefined' && import.meta.env ? (import.meta.env.VITE_API_URL as string | undefined) : undefined;
+    if (envUrl) {
+        return envUrl.endsWith('/api/v1') ? envUrl : `${envUrl.replace(/\/$/, '')}/api/v1`;
+    }
+    return 'http://localhost:8080/api/v1';
+}
 
 const API_BASE_URL = getApiBaseUrl();
 
