@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -31,7 +30,8 @@ func FamilyContextMiddleware(db *database.AppDB) gin.HandlerFunc {
 		var familyID string
 		var role string
 		query := `SELECT family_id, role FROM family_members WHERE user_id = $1 LIMIT 1`
-		err := db.QueryRowContext(context.Background(), query, uidStr).Scan(&familyID, &role)
+		// Use c.Request.Context() to maintain distributed tracing context and request cancellation
+		err := db.QueryRowContext(c.Request.Context(), query, uidStr).Scan(&familyID, &role)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "user must join a family first"})
 			c.Abort()
