@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -16,6 +17,7 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
+	URL      string `yaml:"url"`
 	Host     string `yaml:"host"`
 	Port     string `yaml:"port"`
 	User     string `yaml:"user"`
@@ -36,6 +38,7 @@ type LogConfig struct {
 }
 
 type RedisConfig struct {
+	URL      string `yaml:"url"`
 	Host     string `yaml:"host"`
 	Port     string `yaml:"port"`
 	Password string `yaml:"password"`
@@ -52,6 +55,15 @@ type EmailConfig struct {
 	From   string `yaml:"from"`
 }
 
+type TelegramConfig struct {
+	BotToken      string `yaml:"bot_token"`
+	WebhookSecret string `yaml:"webhook_secret"`
+}
+
+type CORSConfig struct {
+	AllowedOrigins []string `yaml:"allowed_origins"`
+}
+
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
@@ -60,6 +72,8 @@ type Config struct {
 	Redis    RedisConfig    `yaml:"redis"`
 	OTP      OTPConfig      `yaml:"otp"`
 	Email    EmailConfig    `yaml:"email"`
+	Telegram TelegramConfig `yaml:"telegram"`
+	CORS     CORSConfig     `yaml:"cors"`
 }
 
 var envPattern = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)(?::([^}]*))?\}`)
@@ -107,23 +121,56 @@ func Load(configPath string) *Config {
 		return defaultFallback()
 	}
 
+	// Environment variable overrides / fallbacks
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		cfg.Database.URL = dbURL
+	}
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		cfg.Redis.URL = redisURL
+	}
+	if tgToken := os.Getenv("TELEGRAM_BOT_TOKEN"); tgToken != "" {
+		cfg.Telegram.BotToken = tgToken
+	}
+	if tgSecret := os.Getenv("TELEGRAM_WEBHOOK_SECRET"); tgSecret != "" {
+		cfg.Telegram.WebhookSecret = tgSecret
+	}
+	if resendKey := os.Getenv("RESEND_API_KEY"); resendKey != "" {
+		cfg.Email.APIKey = resendKey
+	}
 	if cfg.Email.From == "" {
 		cfg.Email.From = "onboarding@resend.dev"
 	}
-	if cfg.Email.APIKey == "" {
-		cfg.Email.APIKey = os.Getenv("RESEND_API_KEY")
+	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
+		origins := strings.Split(corsEnv, ",")
+		for i := range origins {
+			origins[i] = strings.TrimSpace(origins[i])
+		}
+		cfg.CORS.AllowedOrigins = origins
+	}
+	if len(cfg.CORS.AllowedOrigins) == 0 {
+		cfg.CORS.AllowedOrigins = []string{"http://localhost:5173"}
 	}
 
 	return &cfg
 }
 
 func defaultFallback() *Config {
+	allowedOrigins := []string{"http://localhost:5173"}
+	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
+		origins := strings.Split(corsEnv, ",")
+		for i := range origins {
+			origins[i] = strings.TrimSpace(origins[i])
+		}
+		allowedOrigins = origins
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port: os.Getenv("PORT"),
 			Mode: os.Getenv("GIN_MODE"),
 		},
 		Database: DatabaseConfig{
+			URL:      os.Getenv("DATABASE_URL"),
 			Host:     os.Getenv("DB_HOST"),
 			Port:     os.Getenv("DB_PORT"),
 			User:     os.Getenv("DB_USER"),
@@ -141,9 +188,10 @@ func defaultFallback() *Config {
 			Level: "info",
 		},
 		Redis: RedisConfig{
+			URL:      os.Getenv("REDIS_URL"),
 			Host:     "localhost",
 			Port:     "6379",
-			Password: "",
+			Password: os.Getenv("REDIS_PASSWORD"),
 			DB:       0,
 		},
 		OTP: OTPConfig{
@@ -154,12 +202,22 @@ func defaultFallback() *Config {
 			APIKey: os.Getenv("RESEND_API_KEY"),
 			From:   "onboarding@resend.dev",
 		},
+		Telegram: TelegramConfig{
+			BotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
+			WebhookSecret: os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
+		},
+		CORS: CORSConfig{
+			AllowedOrigins: allowedOrigins,
+		},
 	}
 }
 
-
 // DSN returns Data Source Name string for database connection
 func (c *Config) DSN() string {
+	if c.Database.URL != "" {
+		return c.Database.URL
+	}
+
 	host := c.Database.Host
 	if host == "" {
 		host = "localhost"
