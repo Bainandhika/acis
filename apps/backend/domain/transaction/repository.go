@@ -16,6 +16,8 @@ type DBExecutor interface {
 type TransactionRepository interface {
 	CreateTransaction(ctx context.Context, exec DBExecutor, tx *Transaction) error
 	GetTransactionsByFamilyID(ctx context.Context, familyID string) ([]Transaction, error)
+	GetTransactionByID(ctx context.Context, txID string) (*Transaction, error)
+	DeleteTransaction(ctx context.Context, exec DBExecutor, txID string) error
 	CreateProposal(ctx context.Context, prop *Proposal) error
 	GetProposalsByFamilyID(ctx context.Context, familyID string) ([]Proposal, error)
 	GetProposalForUpdate(ctx context.Context, exec DBExecutor, proposalID string) (*Proposal, error)
@@ -46,6 +48,23 @@ func (r *txRepoImpl) GetTransactionsByFamilyID(ctx context.Context, familyID str
 	var list []Transaction
 	err := r.db.SelectContext(ctx, &list, query, familyID)
 	return list, err
+}
+
+func (r *txRepoImpl) GetTransactionByID(ctx context.Context, txID string) (*Transaction, error) {
+	query := `SELECT id, wallet_id, created_by, type, amount, category, description, created_at 
+			  FROM transactions WHERE id = $1`
+	var tx Transaction
+	err := r.db.GetContext(ctx, &tx, query, txID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &tx, err
+}
+
+func (r *txRepoImpl) DeleteTransaction(ctx context.Context, exec DBExecutor, txID string) error {
+	query := `DELETE FROM transactions WHERE id = $1`
+	_, err := exec.ExecContext(ctx, query, txID)
+	return err
 }
 
 func (r *txRepoImpl) CreateProposal(ctx context.Context, p *Proposal) error {
