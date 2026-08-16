@@ -272,6 +272,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 		familyProtected.PATCH("/family/wallets/:id", middleware.RequireRole("admin"), familyHandler.UpdateWallet)
 		familyProtected.DELETE("/family/wallets/:id", middleware.RequireRole("admin"), familyHandler.DeleteWallet)
 		familyProtected.GET("/family/wallets", familyHandler.GetWallets)
+		familyProtected.DELETE("/family/members/:id", middleware.RequireRole("admin"), familyHandler.RemoveMember)
 
 		familyProtected.POST("/transaction", middleware.RequireRole("admin"), txHandler.CreateTransaction)
 		familyProtected.DELETE("/transaction/:id", middleware.RequireRole("admin"), txHandler.DeleteTransaction)
