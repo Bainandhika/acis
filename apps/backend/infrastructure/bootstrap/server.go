@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -36,36 +37,68 @@ type Server struct {
 	reminderWorker *telegram.LowBalanceWorker
 	otpCache       *cache.OTPCache
 	limiter        *cache.TokenBucketLimiter
+	authLimiter    *cache.TokenBucketLimiter
 }
 
 func NewServer(cfg *config.Config, db *database.AppDB) *Server {
-	r := gin.Default()
+	if cfg.Server.Mode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	r := gin.New()
+	r.Use(gin.Recovery())
+
+	// 1. Security Headers
+	r.Use(middleware.SecurityHeadersMiddleware())
+
+	// 2. Dynamic CORS Configuration
+	allowedOrigins := cfg.CORS.AllowedOrigins
+	if len(allowedOrigins) == 0 {
+		allowedOrigins = []string{"http://localhost:5173"}
+	}
 
 	corsConfig := cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowOrigins:     allowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Transaction-ID", "X-Telegram-Bot-Api-Secret-Token"},
 		ExposeHeaders:    []string{"Content-Length", "X-Transaction-ID"},
 		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
 	}
 	r.Use(cors.New(corsConfig))
+
+	// 3. Request Tracing & Payload Limiters
 	r.Use(middleware.TraceID())
+	r.Use(middleware.RequestSizeLimiter(1 << 20)) // 1 MB payload limit
+	r.Use(middleware.TimeoutMiddleware(15 * time.Second))
 
-	r.Use(middleware.RequestSizeLimiter(1 << 20))
-	r.Use(middleware.TimeoutMiddleware(10 * time.Second))
+	// 4. Rate Limiters (General API: 30 rps/burst 50; Auth: strict 5 req/min)
+	generalLimiter := cache.NewTokenBucketLimiter(30, 50, 5*time.Minute)
+	r.Use(middleware.NativeRateLimitMiddleware(generalLimiter))
 
-	limiter := cache.NewTokenBucketLimiter(2, 5, 5*time.Minute)
-	r.Use(middleware.NativeRateLimitMiddleware(limiter))
+	authLimiter := cache.NewTokenBucketLimiter(1, 5, 5*time.Minute)
 
-	redisAddr := fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port)
-	if cfg.Redis.Host == "" || cfg.Redis.Port == "" {
-		redisAddr = "localhost:6379"
+	// 5. Initialize Redis Client
+	var redisClient *redis.Client
+	if cfg.Redis.URL != "" {
+		opt, err := redis.ParseURL(cfg.Redis.URL)
+		if err == nil {
+			redisClient = redis.NewClient(opt)
+		} else {
+			slog.Warn("Failed to parse REDIS_URL, falling back to host/port", slog.Any("error", err))
+		}
 	}
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
+	if redisClient == nil {
+		redisAddr := fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port)
+		if cfg.Redis.Host == "" || cfg.Redis.Port == "" {
+			redisAddr = "localhost:6379"
+		}
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:     redisAddr,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+		})
+	}
 
 	otpCache := cache.NewOTPCache(redisClient, cfg.OTP.EncryptionKey)
 	tokenStore := cache.NewRefreshTokenStore(redisClient)
@@ -76,13 +109,13 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 		redisClient: redisClient,
 		router:      r,
 		otpCache:    otpCache,
-		limiter:     limiter,
+		limiter:     generalLimiter,
+		authLimiter: authLimiter,
 	}
 
 	s.setupRoutes(tokenStore)
 	return s
 }
-
 
 func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	// Outbox Repository & Worker Pool Setup (Hybrid Redis Pub/Sub + Postgres Outbox)
@@ -94,13 +127,8 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	s.poller.Start(context.Background())
 
 	// Telegram & Resend Client Setup
-	tgToken := os.Getenv("TELEGRAM_BOT_TOKEN")
-	tgClient := telegram.NewClient(tgToken)
-	resendApiKey := s.cfg.Email.APIKey
-	if resendApiKey == "" {
-		resendApiKey = os.Getenv("RESEND_API_KEY")
-	}
-	resendSender := notification.NewResendSender(resendApiKey, s.cfg.Email.From)
+	tgClient := telegram.NewClient(s.cfg.Telegram.BotToken)
+	resendSender := notification.NewResendSender(s.cfg.Email.APIKey, s.cfg.Email.From)
 
 	// Register Outbox Notification Handlers
 	s.workerPool.RegisterHandler("email_otp", func(ctx context.Context, job notification.NotificationJob) error {
@@ -134,7 +162,6 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	authRepo := authentication.NewRepository(s.db)
 	familyRepo := family.NewRepository(s.db)
 
-	// RoleFinder adapter: bridges authentication.RoleFinder interface to family repo
 	roleFinder := NewRoleFinderAdapter(familyRepo)
 	otpTTL, err := time.ParseDuration(s.cfg.OTP.TTL)
 	if err != nil {
@@ -143,7 +170,6 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	authSvc := authentication.NewService(authRepo, roleFinder, outboxRepo, s.otpCache, tokenStore, s.db, s.cfg.JWT.Secret, otpTTL)
 	isProduction := s.cfg.Server.Mode == "release"
 	authHandler := authentication.NewAuthHandler(authSvc, isProduction)
-
 
 	familySvc := family.NewService(familyRepo, s.db)
 	familyHandler := family.NewHandler(familySvc)
@@ -164,14 +190,54 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	// Public Routes
 	v1 := s.router.Group("/api/v1")
 	{
+		// Enhanced Health Check with DB & Redis Ping
 		v1.GET("/health", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "ACIS Modular Monolith API is running"})
+			dbStatus := "healthy"
+			ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+			defer cancel()
+
+			startDB := time.Now()
+			if err := s.db.PingContext(ctx); err != nil {
+				dbStatus = fmt.Sprintf("unhealthy: %v", err)
+			}
+			dbLatencyMs := time.Since(startDB).Milliseconds()
+
+			redisStatus := "healthy"
+			startRedis := time.Now()
+			if err := s.redisClient.Ping(ctx).Err(); err != nil {
+				redisStatus = fmt.Sprintf("unhealthy: %v", err)
+			}
+			redisLatencyMs := time.Since(startRedis).Milliseconds()
+
+			statusCode := http.StatusOK
+			if dbStatus != "healthy" {
+				statusCode = http.StatusServiceUnavailable
+			}
+
+			c.JSON(statusCode, gin.H{
+				"status":      "ok",
+				"version":     "1.2.0",
+				"environment": s.cfg.Server.Mode,
+				"database": gin.H{
+					"status":     dbStatus,
+					"latency_ms": dbLatencyMs,
+				},
+				"redis": gin.H{
+					"status":     redisStatus,
+					"latency_ms": redisLatencyMs,
+				},
+			})
 		})
 
-		v1.POST("/authentication/request-otp", authHandler.RequestOTP)
-		v1.POST("/authentication/verify-otp", authHandler.VerifyOTP)
-		v1.POST("/authentication/refresh", authHandler.RefreshToken)
-		v1.POST("/authentication/logout", authHandler.Logout)
+		// Auth group with strict rate limiting
+		authGroup := v1.Group("/authentication")
+		authGroup.Use(middleware.AuthRateLimitMiddleware(s.authLimiter))
+		{
+			authGroup.POST("/request-otp", authHandler.RequestOTP)
+			authGroup.POST("/verify-otp", authHandler.VerifyOTP)
+			authGroup.POST("/refresh", authHandler.RefreshToken)
+			authGroup.POST("/logout", authHandler.Logout)
+		}
 
 		v1.POST("/telegram/webhook", webhookHandler.HandleWebhook)
 	}
@@ -212,12 +278,15 @@ func (s *Server) Start() error {
 	}
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", port),
-		Handler: s.router,
+		Addr:         fmt.Sprintf(":%s", port),
+		Handler:      s.router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {
-		log.Printf("Server starting on port %s\n", port)
+		log.Printf("Server starting on port %s (mode: %s)\n", port, s.cfg.Server.Mode)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Listen: %s\n", err)
 		}
@@ -243,11 +312,12 @@ func (s *Server) Start() error {
 	if s.limiter != nil {
 		s.limiter.Close()
 	}
+	if s.authLimiter != nil {
+		s.authLimiter.Close()
+	}
 	if s.redisClient != nil {
 		s.redisClient.Close()
 	}
-
-
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal("Server Forced to Shutdown:", err)
