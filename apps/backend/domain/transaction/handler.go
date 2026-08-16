@@ -111,3 +111,16 @@ func (h *TransactionHandler) RejectProposal(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Proposal rejected successfully"})
 }
+
+func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+	txID := c.Param("id")
+
+	if err := h.svc.DeleteTransaction(c.Request.Context(), txID, fIDStr); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Transaction deleted successfully"})
+}
