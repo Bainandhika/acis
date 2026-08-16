@@ -1,6 +1,7 @@
 package authentication
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,30 +25,41 @@ func NewAuthHandler(authService AuthService, isProduction bool) *AuthHandler {
 func (h *AuthHandler) RequestOTP(c *gin.Context) {
 	var req RequestOTPReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email dan nomor telepon yang valid wajib diisi"})
 		return
 	}
 
-	if err := h.authService.RequestOTP(c.Request.Context(), req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	resp, err := h.authService.RequestOTP(c.Request.Context(), req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrEmailMismatch), errors.Is(err, ErrPhoneMismatch), errors.Is(err, ErrAccountConflict):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case errors.Is(err, ErrTooManyRequests):
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "OTP sent successfully. Check your email.",
-	})
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *AuthHandler) VerifyOTP(c *gin.Context) {
 	var req VerifyOTPReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email, nomor telepon, dan 6-digit OTP wajib diisi"})
 		return
 	}
 
 	resp, err := h.authService.VerifyOTP(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		switch {
+		case errors.Is(err, ErrEmailMismatch), errors.Is(err, ErrPhoneMismatch):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -108,4 +120,3 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetCookie(RefreshTokenCookieName, "", -1, AuthCookiePath, "", h.isProduction, true)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }
-
