@@ -168,14 +168,32 @@ onMounted(async () => {
   txStore.fetchProposals()
 })
 
+// Toast Notification System
+interface ToastNotification {
+  id: number
+  message: string
+  type: 'success' | 'error' | 'info'
+}
+const toasts = ref<ToastNotification[]>([])
+let toastCounter = 0
+
+const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const id = ++toastCounter
+  toasts.value.push({ id, message, type })
+  setTimeout(() => {
+    toasts.value = toasts.value.filter(t => t.id !== id)
+  }, 4000)
+}
+
 // Telegram action
 const handleDisconnectTelegram = async () => {
   if (confirm('Yakin ingin memutuskan koneksi bot Telegram?')) {
     try {
       await familyStore.handleDisconnectTelegram()
       isTelegramModalOpen.value = false
+      showToast('Koneksi bot Telegram berhasil diputuskan', 'info')
     } catch {
-      alert('Gagal memutuskan koneksi Telegram!')
+      showToast('Gagal memutuskan koneksi Telegram', 'error')
     }
   }
 }
@@ -191,8 +209,9 @@ const handleSubmitWallet = async () => {
   try {
     await walletStore.addWallet(newWallet.value)
     closeWalletModal()
-  } catch {
-    alert('Gagal membuat dompet!')
+    showToast('Dompet amplop berhasil dibuat!', 'success')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Gagal membuat dompet!', 'error')
   } finally {
     isSubmitting.value = false
   }
@@ -214,8 +233,9 @@ const handleSubmitTx = async () => {
     await txStore.addTransaction(newTx.value)
     await walletStore.fetchWallets()
     closeTxModal()
-  } catch {
-    alert('Gagal membuat transaksi!')
+    showToast('Transaksi berhasil disimpan & saldo dompet terupdate!', 'success')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Gagal membuat transaksi!', 'error')
   } finally {
     isSubmitting.value = false
   }
@@ -236,8 +256,9 @@ const handleSubmitProposal = async () => {
   try {
     await txStore.addProposal(newProposal.value)
     closeProposalModal()
-  } catch {
-    alert('Gagal mengajukan pengeluaran!')
+    showToast('Pengajuan pengeluaran berhasil dikirim ke Admin!', 'success')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Gagal mengajukan pengeluaran!', 'error')
   } finally {
     isSubmitting.value = false
   }
@@ -247,16 +268,18 @@ const approveProp = async (id: string) => {
   try {
     await txStore.handleApprove(id)
     await walletStore.fetchWallets()
-  } catch {
-    alert('Gagal menyetujui pengajuan!')
+    showToast('Pengajuan disetujui & saldo dompet dipotong!', 'success')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Gagal menyetujui pengajuan!', 'error')
   }
 }
 
 const rejectProp = async (id: string) => {
   try {
     await txStore.handleReject(id)
-  } catch {
-    alert('Gagal menolak pengajuan!')
+    showToast('Pengajuan ditolak', 'info')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Gagal menolak pengajuan!', 'error')
   }
 }
 </script>
@@ -1024,6 +1047,34 @@ const rejectProp = async (id: string) => {
         </div>
       </div>
     </dialog>
+
+    <!-- 5. Floating Toast Container -->
+    <div class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full">
+      <transition-group 
+        enter-active-class="transition duration-300 ease-out transform"
+        enter-from-class="translate-y-4 opacity-0 scale-95"
+        enter-to-class="translate-y-0 opacity-100 scale-100"
+        leave-active-class="transition duration-200 ease-in transform"
+        leave-from-class="translate-y-0 opacity-100 scale-100"
+        leave-to-class="translate-y-4 opacity-0 scale-95"
+      >
+        <div 
+          v-for="t in toasts" 
+          :key="t.id"
+          class="pointer-events-auto flex items-center gap-3 p-4 rounded-2xl shadow-xl border text-xs font-bold backdrop-blur-md transition-all"
+          :class="{
+            'bg-slate-900 text-white border-slate-700': t.type === 'info',
+            'bg-emerald-950 text-emerald-200 border-emerald-800': t.type === 'success',
+            'bg-rose-950 text-rose-200 border-rose-800': t.type === 'error'
+          }"
+        >
+          <span v-if="t.type === 'success'" class="text-base">✅</span>
+          <span v-else-if="t.type === 'error'" class="text-base">❌</span>
+          <span v-else class="text-base">ℹ️</span>
+          <span class="flex-1">{{ t.message }}</span>
+        </div>
+      </transition-group>
+    </div>
   </div>
 </template>
 
