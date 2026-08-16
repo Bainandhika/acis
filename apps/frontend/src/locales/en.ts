@@ -222,14 +222,22 @@ export const en = {
       save: 'Save Changes',
       saving: 'Saving...',
     },
-    editFamily: {
-      title: 'Rename Family Workspace',
-      subtitle: 'Update your household workspace display name.',
+    familyManage: {
+      title: 'Family Management',
+      subtitle: 'Rename family workspace and manage members.',
       nameLabel: 'Family Workspace Name',
       namePlaceholder: 'e.g. Smith Family',
-      cancel: 'Cancel',
-      save: 'Save Name',
-      saving: 'Saving...',
+      saveName: 'Save Name',
+      savingName: 'Saving...',
+      membersTitle: 'Members',
+      youBadge: 'You',
+      removeMember: 'Remove',
+      confirmRemoveTitle: 'Remove Member',
+      confirmRemoveDesc: 'Are you sure you want to remove {name} from the family? They will lose access to all family finances.',
+      confirmRemoveBtn: 'Yes, Remove',
+      removingBtn: 'Removing...',
+      permissionDenied: 'Only family admins can manage this workspace.',
+      cancel: 'Close',
     },
     confirmDelete: {
       titleWallet: 'Delete Wallet Envelope',
@@ -296,5 +304,7 @@ export const en = {
     proposalRejected: 'Proposal rejected',
     botDisconnected: 'Telegram bot disconnected successfully',
     botDisconnectFailed: 'Failed to disconnect Telegram bot',
+    memberRemoved: 'Family member removed successfully!',
+    memberRemoveFailed: 'Failed to remove family member.',
   }
 };
