@@ -56,3 +56,7 @@ export const approveProposal = (proposalId: string) =>
 
 export const rejectProposal = (proposalId: string) =>
   apiClient.post(`/transaction/proposals/${proposalId}/reject`);
+
+export const deleteTransaction = (transactionId: string) =>
+  apiClient.delete(`/transaction/${transactionId}`);
+
