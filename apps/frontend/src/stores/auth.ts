@@ -1,15 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import axios from 'axios';
-import apiClient from '../services/api';
-
-export function getApiBaseUrl(): string {
-    const envUrl = import.meta.env.VITE_API_URL;
-    if (envUrl) {
-        return envUrl.endsWith('/api/v1') ? envUrl : `${envUrl.replace(/\/$/, '')}/api/v1`;
-    }
-    return 'http://localhost:8080/api/v1';
-}
+import apiClient, { getApiBaseUrl } from '../services/api';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -17,9 +9,11 @@ const API_BASE_URL = getApiBaseUrl();
 export interface User {
     id: string;
     email: string;
+    phone_number: string;
     name: string;
     role: 'admin' | 'member';
     avatar_url?: string | null;
+    telegram_chat_id?: number | null;
 }
 
 export interface AuthResponse {
@@ -29,10 +23,23 @@ export interface AuthResponse {
 
 export interface OTPRequestPayload {
     email: string;
+    telegram_identifier: string;
+    phone_number?: string;
+}
+
+export interface OTPRequestResponse {
+    message: string;
+    auth_session: string;
+    telegram_bot_username?: string;
+    direct_sent: boolean;
+    is_test_user?: boolean;
+    test_otp?: string;
 }
 
 export interface VerifyOTPPayload {
     email: string;
+    telegram_identifier: string;
+    phone_number?: string;
     otp: string;
 }
 
@@ -49,7 +56,6 @@ export function setAccessToken(token: string | null): void {
 
 // --- Pinia Store ---
 export const useAuthStore = defineStore('auth', () => {
-    // State: strictly in-memory (no tokens in localStorage)
     const token = ref<string | null>(inMemoryAccessToken);
     const user = ref<User | null>(null);
     const isInitialized = ref(false);
@@ -70,14 +76,27 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     // Actions (Methods)
-    async function requestOTP(email: string): Promise<void> {
-        await apiClient.post('/authentication/request-otp', { email } as OTPRequestPayload);
+    async function requestOTP(email: string, telegramIdentifier: string): Promise<OTPRequestResponse> {
+        const { data } = await apiClient.post<OTPRequestResponse>(
+            '/authentication/request-otp',
+            { 
+                email, 
+                telegram_identifier: telegramIdentifier,
+                phone_number: telegramIdentifier 
+            } as OTPRequestPayload
+        );
+        return data;
     }
 
-    async function verifyOTP(email: string, code: string): Promise<void> {
+    async function verifyOTP(email: string, telegramIdentifier: string, code: string): Promise<void> {
         const { data } = await apiClient.post<AuthResponse>(
             '/authentication/verify-otp',
-            { email, otp: code } as VerifyOTPPayload
+            { 
+                email, 
+                telegram_identifier: telegramIdentifier,
+                phone_number: telegramIdentifier,
+                otp: code 
+            } as VerifyOTPPayload
         );
 
         setAuth(data.token, data.user);
