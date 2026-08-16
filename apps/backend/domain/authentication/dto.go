@@ -1,9 +1,9 @@
 package authentication
 
 type RequestOTPReq struct {
-	Email              string `json:"email" binding:"required,email"`
-	PhoneNumber        string `json:"phone_number"`
-	TelegramIdentifier string `json:"telegram_identifier"`
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	Username    string `json:"username"`
+	Action      string `json:"action"` // "login" | "register"
 }
 
 type RequestOTPResponse struct {
@@ -16,15 +16,15 @@ type RequestOTPResponse struct {
 }
 
 type VerifyOTPReq struct {
-	Email              string `json:"email" binding:"required,email"`
-	PhoneNumber        string `json:"phone_number"`
-	TelegramIdentifier string `json:"telegram_identifier"`
-	OTP                string `json:"otp" binding:"required,len=6"`
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	OTP         string `json:"otp" binding:"required,len=6"`
+	Username    string `json:"username,omitempty"`
+	Action      string `json:"action,omitempty"`
 }
 
 type UserResponse struct {
 	ID             string  `json:"id"`
-	Email          string  `json:"email"`
+	Username       string  `json:"username"`
 	PhoneNumber    string  `json:"phone_number"`
 	Name           string  `json:"name"`
 	Role           string  `json:"role"`
