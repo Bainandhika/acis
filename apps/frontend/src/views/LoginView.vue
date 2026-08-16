@@ -1,34 +1,44 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
+import { useI18n } from '../locales'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const { t, locale, setLocale } = useI18n()
 
+// Active Mode: 'login' (Sign In) or 'register' (Sign Up)
+const authMode = ref<'login' | 'register'>('login')
 const step = ref(1)
-const email = ref('')
-const telegramIdentifier = ref('')
+
+const username = ref('')
+const phoneNumber = ref('')
 const otp = ref('')
 const isTestUser = ref(false)
 const loading = ref(false)
 const error = ref('')
 
-const testUsers = [
-  { label: 'Admin User', email: 'admin@acis.test', identifier: '100000001' },
-  { label: 'Sarah (Member)', email: 'member1@acis.test', identifier: '100000002' },
-  { label: 'Alex (Member)', email: 'member2@acis.test', identifier: '100000003' },
-]
+// Indonesian phone format validation (+628... or 08...)
+const isValidPhone = computed(() => {
+  const cleaned = phoneNumber.value.trim().replace(/[\s-]/g, '')
+  return /^(\+628|08|628)[0-9]{8,12}$/.test(cleaned)
+})
 
-const fillTestUser = (u: { email: string, identifier: string }) => {
-  email.value = u.email
-  telegramIdentifier.value = u.identifier
+const handleSwitchMode = (mode: 'login' | 'register') => {
+  authMode.value = mode
   error.value = ''
 }
 
 const handleRequestOTP = async () => {
-  if (!email.value.trim() || !telegramIdentifier.value.trim()) {
-    error.value = 'Please enter a valid email address and Telegram identifier.'
+  const cleanedPhone = phoneNumber.value.trim().replace(/[\s-]/g, '')
+  if (!isValidPhone.value) {
+    error.value = t('login.errors.invalidPhone')
+    return
+  }
+
+  if (authMode.value === 'register' && !username.value.trim()) {
+    error.value = t('login.errors.usernameRequired')
     return
   }
 
@@ -36,14 +46,25 @@ const handleRequestOTP = async () => {
   error.value = ''
   
   try {
-    const res = await authStore.requestOTP(email.value.trim().toLowerCase(), telegramIdentifier.value.trim())
+    const res = await authStore.requestOTP(
+      cleanedPhone, 
+      authMode.value === 'register' ? username.value.trim() : undefined,
+      authMode.value
+    )
     isTestUser.value = !!res.is_test_user
     if (res.is_test_user && res.test_otp) {
       otp.value = res.test_otp
     }
     step.value = 2
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Failed to request Telegram OTP. Please check your credentials.'
+    const errMsg = err.response?.data?.error
+    if (err.response?.status === 409) {
+      error.value = t('login.errors.duplicatePhone')
+    } else if (err.response?.status === 404) {
+      error.value = t('login.errors.unregisteredPhone')
+    } else {
+      error.value = errMsg || t('login.errors.requestFailed')
+    }
   } finally {
     loading.value = false
   }
@@ -55,10 +76,16 @@ const handleVerifyOTP = async () => {
   error.value = ''
   
   try {
-    await authStore.verifyOTP(email.value.trim().toLowerCase(), telegramIdentifier.value.trim(), otp.value.trim())
+    const cleanedPhone = phoneNumber.value.trim().replace(/[\s-]/g, '')
+    await authStore.verifyOTP(
+      cleanedPhone, 
+      otp.value.trim(), 
+      authMode.value === 'register' ? username.value.trim() : undefined,
+      authMode.value
+    )
     router.push('/')
   } catch (err: any) {
-    error.value = err.response?.data?.error || 'Invalid or expired OTP.'
+    error.value = err.response?.data?.error || t('login.errors.invalidOtp')
   } finally {
     loading.value = false
   }
@@ -72,17 +99,59 @@ const handleVerifyOTP = async () => {
     <div class="absolute bottom-1/4 right-1/3 w-80 h-80 bg-lime-200/30 rounded-full blur-3xl pointer-events-none"></div>
 
     <div class="card-neo w-full max-w-md p-8 relative z-10 border border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-xl">
+      <!-- Top Bar with Language Selector -->
+      <div class="flex justify-end mb-4">
+        <div class="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/70 text-[11px] font-bold">
+          <button 
+            @click="setLocale('en')"
+            class="px-2.5 py-1 rounded-lg transition-all"
+            :class="locale === 'en' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+            type="button"
+          >
+            🇬🇧 EN
+          </button>
+          <button 
+            @click="setLocale('id')"
+            class="px-2.5 py-1 rounded-lg transition-all"
+            :class="locale === 'id' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+            type="button"
+          >
+            🇮🇩 ID
+          </button>
+        </div>
+      </div>
+
       <!-- Logo Header -->
       <div class="flex flex-col items-center text-center mb-6">
         <div class="w-14 h-14 rounded-3xl bg-gradient-to-tr from-brand-500 to-lime-300 flex items-center justify-center shadow-lg shadow-brand-500/30 text-white font-black text-2xl mb-4">
           A
         </div>
         <h2 class="text-2xl font-black text-slate-900 tracking-tight">
-          Sign In to ACIS
+          {{ t('login.title') }}
         </h2>
         <p class="text-xs text-slate-400 font-medium mt-1">
-          Smart Family Finance Management &amp; Automated Telegram OTP
+          {{ t('login.subtitle') }}
         </p>
+      </div>
+
+      <!-- Sign In / Sign Up Segmented Tabs (Step 1 only) -->
+      <div v-if="step === 1" class="flex p-1 bg-slate-100/90 rounded-2xl mb-6 text-xs font-black border border-slate-200/60">
+        <button 
+          class="flex-1 py-2.5 rounded-xl transition-all"
+          :class="authMode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+          @click="handleSwitchMode('login')"
+          type="button"
+        >
+          {{ t('login.tabSignIn') }}
+        </button>
+        <button 
+          class="flex-1 py-2.5 rounded-xl transition-all"
+          :class="authMode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+          @click="handleSwitchMode('register')"
+          type="button"
+        >
+          {{ t('login.tabSignUp') }}
+        </button>
       </div>
       
       <!-- Error Alert -->
@@ -95,91 +164,78 @@ const handleVerifyOTP = async () => {
         <span>{{ error }}</span>
       </div>
 
-      <!-- Quick Test User Seeds & Bypass Selector -->
-      <div class="mb-5 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Test Users (OTP Bypass: 123456)</span>
-        </div>
-        <div class="grid grid-cols-3 gap-1.5">
-          <button 
-            v-for="u in testUsers" 
-            :key="u.email"
-            @click="fillTestUser(u)"
-            class="py-1.5 px-2 rounded-xl bg-white hover:bg-brand-50 hover:text-brand-800 border border-slate-200 text-[11px] font-bold text-slate-700 transition text-center shadow-sm"
-          >
-            {{ u.label }}
-          </button>
-        </div>
-      </div>
-
-      <!-- STEP 1: Input Email & Telegram Identifier -->
+      <!-- STEP 1: Phone & (Optional Username on Sign-Up) Inputs -->
       <div v-if="step === 1" class="flex flex-col gap-4">
-        <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">Email Address</label>
+        <!-- Username input shown only in Sign-Up mode -->
+        <div v-if="authMode === 'register'">
+          <label class="text-xs font-bold text-slate-700 block mb-1.5">{{ t('login.usernameLabel') }}</label>
           <div class="relative">
             <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
-              </svg>
-            </span>
-            <input 
-              type="email" 
-              v-model="email" 
-              placeholder="user@family.com" 
-              class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
-              @keyup.enter="telegramIdentifier && email && handleRequestOTP()"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">Telegram Identifier</label>
-          <div class="relative">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
               </svg>
             </span>
             <input 
               type="text" 
-              v-model="telegramIdentifier" 
-              placeholder="Telegram Chat ID (e.g. 100000001) or @username" 
+              v-model="username" 
+              :placeholder="t('login.usernamePlaceholder')" 
               class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
-              @keyup.enter="email && telegramIdentifier && handleRequestOTP()"
+              @keyup.enter="phoneNumber && handleRequestOTP()"
             />
           </div>
-          <p class="text-[10px] text-slate-400 mt-1">OTP is sent automatically to your Telegram without needing to run /start.</p>
+          <p class="text-[10px] text-slate-400 mt-1.5">{{ t('login.usernameHint') }}</p>
+        </div>
+
+        <!-- Phone Number input (Required for both Sign-In and Sign-Up) -->
+        <div>
+          <label class="text-xs font-bold text-slate-700 block mb-1.5">{{ t('login.phoneLabel') }}</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </span>
+            <input 
+              type="tel" 
+              v-model="phoneNumber" 
+              :placeholder="t('login.phonePlaceholder')" 
+              class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
+              @keyup.enter="phoneNumber && handleRequestOTP()"
+            />
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1.5">{{ t('login.phoneHint') }}</p>
         </div>
 
         <button 
           class="w-full py-3.5 mt-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
-          :disabled="loading || !email || !telegramIdentifier"
+          :disabled="loading || !phoneNumber.trim() || (authMode === 'register' && !username.trim())"
           @click="handleRequestOTP"
         >
-          <svg class="w-4 h-4 text-brand-300" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+          <svg class="w-4 h-4 text-brand-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
-          <span>{{ loading ? 'Sending OTP...' : 'Request Telegram OTP' }}</span>
+          <span>{{ loading ? t('login.sendingOtp') : (authMode === 'register' ? t('login.registerAndRequestOtp') : t('login.requestOtp')) }}</span>
         </button>
       </div>
 
-      <!-- STEP 2: Input Telegram OTP -->
+      <!-- STEP 2: Input 6-Digit OTP -->
       <div v-else class="flex flex-col gap-4">
         <div class="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
           <p class="text-xs text-emerald-800 font-bold">
-            OTP Sent Automatically!
+            {{ t('login.otpSentTitle') }}
           </p>
           <p class="text-[11px] text-emerald-700 mt-0.5">
-            Verification code sent for <span class="font-bold">{{ email }}</span> ({{ telegramIdentifier }})
+            {{ t('login.otpSentSubtitle') }} <span class="font-bold font-mono">{{ phoneNumber }}</span>
           </p>
           <div v-if="isTestUser" class="mt-2 text-[11px] text-brand-700 bg-brand-100/80 px-2.5 py-1 rounded-xl font-mono font-bold inline-block">
-            Test Bypass OTP: 123456
+            {{ t('login.testBypassHint') }}
           </div>
         </div>
 
         <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5 text-center">Enter 6-Digit Telegram OTP</label>
+          <label class="text-xs font-bold text-slate-700 block mb-1.5 text-center">{{ t('login.enterOtpLabel') }}</label>
           <input 
             type="text" 
             v-model="otp" 
@@ -196,21 +252,21 @@ const handleVerifyOTP = async () => {
             @click="step = 1"
             :disabled="loading"
           >
-            Back
+            {{ t('login.back') }}
           </button>
           <button 
             class="flex-1 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition shadow-md active:scale-95 disabled:opacity-50"
             :disabled="loading || otp.length !== 6"
             @click="handleVerifyOTP"
           >
-            {{ loading ? 'Verifying...' : 'Verify & Sign In' }}
+            {{ loading ? t('login.verifying') : t('login.verifyAndSignIn') }}
           </button>
         </div>
       </div>
 
       <!-- Footer Note -->
       <p class="text-[10px] text-slate-400 text-center mt-8">
-        Protected with encrypted end-to-end security &amp; ACIS Bot Token.
+        {{ t('login.footerSecurity') }}
       </p>
     </div>
   </div>
