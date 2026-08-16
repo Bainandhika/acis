@@ -37,3 +37,7 @@ export const updateFamilySettings = (monthly_income: number) =>
 export const disconnectTelegram = () =>
   apiClient.post('/family/telegram/disconnect');
 
+export const removeMember = (memberId: string) =>
+  apiClient.delete(`/family/members/${memberId}`);
+
+
