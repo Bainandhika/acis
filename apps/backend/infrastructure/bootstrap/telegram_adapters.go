@@ -51,9 +51,9 @@ func (a *authSessionAdapter) ResolveAuthSession(ctx context.Context, sessionToke
 		return "", err
 	}
 
-	// If user exists with email + phone, update their telegram_chat_id
+	// If user exists with phone, update their telegram_chat_id
 	if a.authRepo != nil {
-		user, err := a.authRepo.FindByEmailAndPhone(ctx, session.Email, session.PhoneNumber)
+		user, err := a.authRepo.FindByPhoneNumber(ctx, session.PhoneNumber)
 		if err == nil && user != nil {
 			_ = a.authRepo.UpdateTelegramChatID(ctx, user.ID, chatID)
 		}
@@ -68,7 +68,7 @@ func (a *authSessionAdapter) GetActiveOTP(ctx context.Context, email, phone stri
 	}
 	// If user exists, link chatID
 	if a.authRepo != nil {
-		user, err := a.authRepo.FindByEmailAndPhone(ctx, email, phone)
+		user, err := a.authRepo.FindByPhoneNumber(ctx, phone)
 		if err == nil && user != nil {
 			_ = a.authRepo.UpdateTelegramChatID(ctx, user.ID, chatID)
 		}
