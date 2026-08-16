@@ -3,7 +3,6 @@ import apiClient from './api';
 export interface FamilyMember {
   id: string;
   user_id: string;
-  user_name?: string;
   role: 'admin' | 'member';
   joined_at: string;
 }
@@ -19,14 +18,14 @@ export interface Family {
   created_at: string;
 }
 
-export const getMyFamily = () =>
-  apiClient.get<{ data: Family }>('/family/me');
-
-export const createFamily = (name: string, monthly_income: number = 0) =>
-  apiClient.post<{ data: Family }>('/family', { name, monthly_income });
+export const createFamily = (name: string, monthlyIncome: number = 0) =>
+  apiClient.post<{ message: string; data: Family }>('/family', { name, monthly_income: monthlyIncome });
 
 export const joinFamily = (invite_code: string) =>
-  apiClient.post<{ data: Family }>('/family/join', { invite_code });
+  apiClient.post<{ message: string; data: Family }>('/family/join', { invite_code });
+
+export const getMyFamily = () =>
+  apiClient.get<Family>('/family/me');
 
 export const updateFamilySettings = (monthly_income: number) =>
   apiClient.patch('/family/settings', { monthly_income });
