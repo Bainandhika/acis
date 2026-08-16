@@ -47,6 +47,11 @@ type OTPConfig struct {
 	EncryptionKey string `yaml:"encryption_key"`
 }
 
+type EmailConfig struct {
+	APIKey string `yaml:"api_key"`
+	From   string `yaml:"from"`
+}
+
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
@@ -54,6 +59,7 @@ type Config struct {
 	Log      LogConfig      `yaml:"log"`
 	Redis    RedisConfig    `yaml:"redis"`
 	OTP      OTPConfig      `yaml:"otp"`
+	Email    EmailConfig    `yaml:"email"`
 }
 
 var envPattern = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)(?::([^}]*))?\}`)
@@ -101,6 +107,13 @@ func Load(configPath string) *Config {
 		return defaultFallback()
 	}
 
+	if cfg.Email.From == "" {
+		cfg.Email.From = "onboarding@resend.dev"
+	}
+	if cfg.Email.APIKey == "" {
+		cfg.Email.APIKey = os.Getenv("RESEND_API_KEY")
+	}
+
 	return &cfg
 }
 
@@ -136,6 +149,10 @@ func defaultFallback() *Config {
 		OTP: OTPConfig{
 			TTL:           "5m",
 			EncryptionKey: os.Getenv("OTP_ENCRYPTION_KEY"),
+		},
+		Email: EmailConfig{
+			APIKey: os.Getenv("RESEND_API_KEY"),
+			From:   "onboarding@resend.dev",
 		},
 	}
 }
