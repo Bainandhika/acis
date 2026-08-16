@@ -30,7 +30,10 @@ func TestLoadConfig(t *testing.T) {
   port: "${TEST_PORT:9090}"
 database:
   host: "127.0.0.1"
-  password: "secret_db_pass"`
+  password: "secret_db_pass"
+telegram:
+  bot_token: "test_bot_token"
+  bot_username: "acis_bot"`
 
 	if err := os.WriteFile(yamlFile, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write temp config file: %v", err)
@@ -46,44 +49,42 @@ database:
 	if cfg.Database.Password != "secret_db_pass" {
 		t.Errorf("expected Database.Password secret_db_pass, got %s", cfg.Database.Password)
 	}
-	if cfg.Email.From != "onboarding@resend.dev" {
-		t.Errorf("expected default Email.From 'onboarding@resend.dev', got %s", cfg.Email.From)
+	if cfg.Telegram.BotToken != "test_bot_token" {
+		t.Errorf("expected Telegram.BotToken 'test_bot_token', got %s", cfg.Telegram.BotToken)
+	}
+	if cfg.Telegram.BotUsername != "acis_bot" {
+		t.Errorf("expected Telegram.BotUsername 'acis_bot', got %s", cfg.Telegram.BotUsername)
 	}
 }
 
-func TestLoadConfig_EmailCustom(t *testing.T) {
-	os.Setenv("TEST_RESEND_KEY", "re_123456789")
-	defer os.Unsetenv("TEST_RESEND_KEY")
+func TestLoadConfig_TelegramEnv(t *testing.T) {
+	os.Setenv("TELEGRAM_BOT_TOKEN", "env_token_123")
+	os.Setenv("TELEGRAM_WEBHOOK_SECRET", "env_secret_456")
+	os.Setenv("TELEGRAM_BOT_USERNAME", "env_bot")
+	defer func() {
+		os.Unsetenv("TELEGRAM_BOT_TOKEN")
+		os.Unsetenv("TELEGRAM_WEBHOOK_SECRET")
+		os.Unsetenv("TELEGRAM_BOT_USERNAME")
+	}()
 
 	tmpDir := t.TempDir()
 	yamlFile := filepath.Join(tmpDir, "acis-config.yaml")
 
-	content := `email:
-  api_key: "${TEST_RESEND_KEY}"
-  from: "Acis Team <custom@example.com>"`
+	content := `server:
+  port: "8080"`
 
 	if err := os.WriteFile(yamlFile, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write temp config file: %v", err)
 	}
 
 	cfg := Load(yamlFile)
-	if cfg.Email.APIKey != "re_123456789" {
-		t.Errorf("expected Email.APIKey re_123456789, got %s", cfg.Email.APIKey)
+	if cfg.Telegram.BotToken != "env_token_123" {
+		t.Errorf("expected Telegram.BotToken 'env_token_123', got %s", cfg.Telegram.BotToken)
 	}
-	if cfg.Email.From != "Acis Team <custom@example.com>" {
-		t.Errorf("expected Email.From 'Acis Team <custom@example.com>', got %s", cfg.Email.From)
+	if cfg.Telegram.WebhookSecret != "env_secret_456" {
+		t.Errorf("expected Telegram.WebhookSecret 'env_secret_456', got %s", cfg.Telegram.WebhookSecret)
 	}
-}
-
-func TestDefaultFallback_Email(t *testing.T) {
-	os.Setenv("RESEND_API_KEY", "re_fallback_key")
-	defer os.Unsetenv("RESEND_API_KEY")
-
-	cfg := defaultFallback()
-	if cfg.Email.APIKey != "re_fallback_key" {
-		t.Errorf("expected fallback Email.APIKey 're_fallback_key', got %s", cfg.Email.APIKey)
-	}
-	if cfg.Email.From != "onboarding@resend.dev" {
-		t.Errorf("expected fallback Email.From 'onboarding@resend.dev', got %s", cfg.Email.From)
+	if cfg.Telegram.BotUsername != "env_bot" {
+		t.Errorf("expected Telegram.BotUsername 'env_bot', got %s", cfg.Telegram.BotUsername)
 	}
 }
