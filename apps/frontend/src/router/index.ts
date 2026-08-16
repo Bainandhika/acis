@@ -41,7 +41,6 @@ router.beforeEach(async (to, _from, next) => {
 
   // Try silent refresh once on initial application load if unauthenticated
   if (!authStore.isInitialized) {
-    authStore.isInitialized = true;
     if (!authStore.isAuthenticated) {
       try {
         await authStore.refreshToken();
@@ -49,6 +48,7 @@ router.beforeEach(async (to, _from, next) => {
         // Not authenticated or expired refresh token
       }
     }
+    authStore.isInitialized = true;
   }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
