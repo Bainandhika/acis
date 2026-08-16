@@ -63,11 +63,51 @@ func (m *MockFamilyService) GetMembers(ctx context.Context, familyID string) ([]
 	return args.Get(0).([]telegram.FamilyMemberDTO), args.Error(1)
 }
 
+type MockAuthResolver struct {
+	mock.Mock
+}
+
+func (m *MockAuthResolver) ResolveAuthSession(ctx context.Context, sessionToken string, chatID int64) (string, error) {
+	args := m.Called(ctx, sessionToken, chatID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockAuthResolver) GetActiveOTP(ctx context.Context, email, phone string, chatID int64) (string, error) {
+	args := m.Called(ctx, email, phone, chatID)
+	return args.String(0), args.Error(1)
+}
+
+func TestBotService_StartWithAuthToken(t *testing.T) {
+	mockTxSvc := new(MockTransactionService)
+	mockFamSvc := new(MockFamilyService)
+	mockAuth := new(MockAuthResolver)
+	tgClient := telegram.NewClient("")
+	botSvc := telegram.NewBotService(mockTxSvc, mockFamSvc, mockAuth, tgClient)
+
+	ctx := context.Background()
+	mockAuth.On("ResolveAuthSession", ctx, "auth_session_123", int64(1001)).Return("654321", nil)
+
+	update := &telegram.TelegramUpdate{
+		Message: &telegram.TelegramMessage{
+			MessageID: 1,
+			Chat:      telegram.TelegramChat{ID: 1001},
+			Text:      "/start auth_session_123",
+		},
+	}
+
+	reply, err := botSvc.ProcessUpdate(ctx, update)
+	assert.NoError(t, err)
+	assert.Contains(t, reply, "654321")
+	assert.Contains(t, reply, "Kode Masuk ACIS")
+	mockAuth.AssertExpectations(t)
+}
+
 func TestBotService_LinkCommand(t *testing.T) {
 	mockTxSvc := new(MockTransactionService)
 	mockFamSvc := new(MockFamilyService)
+	mockAuth := new(MockAuthResolver)
 	tgClient := telegram.NewClient("")
-	botSvc := telegram.NewBotService(mockTxSvc, mockFamSvc, tgClient)
+	botSvc := telegram.NewBotService(mockTxSvc, mockFamSvc, mockAuth, tgClient)
 
 	ctx := context.Background()
 
@@ -90,8 +130,9 @@ func TestBotService_LinkCommand(t *testing.T) {
 func TestBotService_SaldoUnlinked(t *testing.T) {
 	mockTxSvc := new(MockTransactionService)
 	mockFamSvc := new(MockFamilyService)
+	mockAuth := new(MockAuthResolver)
 	tgClient := telegram.NewClient("")
-	botSvc := telegram.NewBotService(mockTxSvc, mockFamSvc, tgClient)
+	botSvc := telegram.NewBotService(mockTxSvc, mockFamSvc, mockAuth, tgClient)
 
 	ctx := context.Background()
 
@@ -114,8 +155,9 @@ func TestBotService_SaldoUnlinked(t *testing.T) {
 func TestBotService_CatatCommand(t *testing.T) {
 	mockTxSvc := new(MockTransactionService)
 	mockFamSvc := new(MockFamilyService)
+	mockAuth := new(MockAuthResolver)
 	tgClient := telegram.NewClient("")
-	botSvc := telegram.NewBotService(mockTxSvc, mockFamSvc, tgClient)
+	botSvc := telegram.NewBotService(mockTxSvc, mockFamSvc, mockAuth, tgClient)
 
 	ctx := context.Background()
 
