@@ -98,10 +98,10 @@ const handleLogout = () => {
         </div>
         <div class="hidden md:flex flex-col text-left">
           <div class="flex items-center gap-1.5 leading-tight">
-            <span class="text-xs font-bold text-slate-900 truncate max-w-[100px]">{{ authStore.user?.name || 'Pengguna' }}</span>
+            <span class="text-xs font-bold text-slate-900 truncate max-w-[100px]">{{ authStore.user?.username || authStore.user?.name || 'Pengguna' }}</span>
             <span class="text-[9px] font-extrabold uppercase px-1 py-0.2 rounded bg-brand-200 text-brand-900">{{ authStore.user?.role }}</span>
           </div>
-          <span class="text-[10px] text-slate-400 truncate max-w-[110px]">{{ authStore.user?.email }}</span>
+          <span class="text-[10px] text-slate-400 truncate max-w-[110px]">{{ authStore.user?.phone_number }}</span>
         </div>
         
         <!-- Logout button -->
