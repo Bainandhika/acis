@@ -63,7 +63,7 @@ const handleLogout = async () => {
   <header class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-4 sm:px-6 lg:px-8">
     <div class="max-w-[1600px] mx-auto flex items-center justify-between h-20 gap-4">
       
-      <!-- Left: Logo & Brand + Family Name (Only) + Prominent Invite Code Badge -->
+      <!-- Left: Logo & Brand: ACIS with Subtitle -->
       <div class="flex items-center gap-5">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-500 to-lime-300 flex items-center justify-center shadow-md shadow-brand-500/20 text-white font-black text-xl shrink-0">
@@ -71,25 +71,9 @@ const handleLogout = async () => {
           </div>
           
           <div class="flex flex-col">
-            <div class="flex items-center gap-2.5">
-              <!-- Family Name ONLY (No generic family-label word attached) -->
-              <span class="font-black text-xl tracking-tight text-slate-900 leading-tight">
-                {{ familyStore.family?.name || 'ACIS' }}
-              </span>
-              
-              <!-- Family Invitation Code Badge (Clearly and prominently displayed) -->
-              <button 
-                v-if="familyStore.family?.invite_code"
-                @click="copyInviteCode"
-                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 hover:bg-brand-100 text-brand-900 border border-brand-300/80 text-xs font-mono font-black transition shadow-sm cursor-pointer active:scale-95"
-                :title="t('nav.copyCode')"
-              >
-                <span class="text-[10px] font-sans font-extrabold uppercase text-brand-700">{{ t('nav.inviteCode') }}:</span>
-                <span class="tracking-wider">{{ familyStore.family?.invite_code }}</span>
-                <span class="text-[11px]">{{ isCodeCopied ? '✓' : '📋' }}</span>
-              </button>
-            </div>
-            
+            <span class="font-black text-xl tracking-tight text-slate-900 leading-tight">
+              ACIS
+            </span>
             <span class="text-[11px] text-slate-400 font-semibold truncate max-w-[220px]">
               {{ t('brand.subtagline') }}
             </span>
@@ -234,57 +218,96 @@ const handleLogout = async () => {
           <span class="hidden sm:inline">{{ t('nav.signOut') }}</span>
         </button>
 
-        <!-- Mobile Menu Toggle -->
-        <button 
-          @click="isMobileMenuOpen = !isMobileMenuOpen"
-          class="xl:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition"
-        >
-          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-    </div>
+        <!-- Mobile Menu Toggle with Content-Width Popup Dropdown (No full-page overlay) -->
+        <div class="relative xl:hidden">
+          <button 
+            @click="isMobileMenuOpen = !isMobileMenuOpen"
+            class="p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition"
+            aria-label="Toggle navigation menu"
+          >
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
 
-    <!-- Mobile Dropdown Navigation Menu -->
-    <div v-if="isMobileMenuOpen" class="xl:hidden border-t border-slate-100 py-3 flex flex-col gap-1">
-      <button
-        @click="emit('select-tab', 'dashboard'); isMobileMenuOpen = false"
-        class="px-4 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2"
-        :class="activeTab === 'dashboard' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'"
-      >
-        <span>{{ t('nav.dashboard') }}</span>
-      </button>
-      <button
-        @click="emit('select-tab', 'wallets'); isMobileMenuOpen = false"
-        class="px-4 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2"
-        :class="activeTab === 'wallets' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'"
-      >
-        <span>{{ t('nav.wallets') }}</span>
-      </button>
-      <button
-        @click="emit('select-tab', 'transactions'); isMobileMenuOpen = false"
-        class="px-4 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2"
-        :class="activeTab === 'transactions' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'"
-      >
-        <span>{{ t('nav.transactions') }}</span>
-      </button>
-      <button
-        @click="emit('select-tab', 'reports'); isMobileMenuOpen = false"
-        class="px-4 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2"
-        :class="activeTab === 'reports' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'"
-      >
-        <span>{{ t('nav.reports') }}</span>
-      </button>
-      <button
-        @click="emit('select-tab', 'submissions'); isMobileMenuOpen = false"
-        class="px-4 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2"
-        :class="activeTab === 'submissions' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'"
-      >
-        <span>{{ t('nav.submissions') }}</span>
-      </button>
+          <!-- Backdrop to close dropdown on click outside -->
+          <div 
+            v-if="isMobileMenuOpen" 
+            class="fixed inset-0 z-40 bg-transparent" 
+            @click="isMobileMenuOpen = false"
+          ></div>
+
+          <!-- Content-Width Popup Menu -->
+          <div 
+            v-if="isMobileMenuOpen" 
+            class="absolute right-0 top-full mt-2 w-56 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 flex flex-col gap-1"
+          >
+            <button
+              @click="emit('select-tab', 'dashboard'); isMobileMenuOpen = false"
+              class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2.5 transition"
+              :class="activeTab === 'dashboard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+            >
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="2"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="2"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+              </svg>
+              <span>{{ t('nav.dashboard') }}</span>
+            </button>
+            <button
+              @click="emit('select-tab', 'wallets'); isMobileMenuOpen = false"
+              class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2.5 transition"
+              :class="activeTab === 'wallets' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+            >
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="5" width="20" height="14" rx="3"></rect>
+                <line x1="2" y1="10" x2="22" y2="10"></line>
+              </svg>
+              <span>{{ t('nav.wallets') }}</span>
+            </button>
+            <button
+              @click="emit('select-tab', 'transactions'); isMobileMenuOpen = false"
+              class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2.5 transition"
+              :class="activeTab === 'transactions' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+            >
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="17 1 21 5 17 9"></polyline>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                <polyline points="7 23 3 19 7 15"></polyline>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+              </svg>
+              <span>{{ t('nav.transactions') }}</span>
+            </button>
+            <button
+              @click="emit('select-tab', 'reports'); isMobileMenuOpen = false"
+              class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2.5 transition"
+              :class="activeTab === 'reports' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+            >
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 3v18h18"></path>
+                <path d="M18 17V9"></path>
+                <path d="M13 17V5"></path>
+                <path d="M8 17v-3"></path>
+              </svg>
+              <span>{{ t('nav.reports') }}</span>
+            </button>
+            <button
+              @click="emit('select-tab', 'submissions'); isMobileMenuOpen = false"
+              class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2.5 transition"
+              :class="activeTab === 'submissions' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+            >
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14"></path>
+                <path d="M5 12h14"></path>
+              </svg>
+              <span>{{ t('nav.submissions') }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 </template>
