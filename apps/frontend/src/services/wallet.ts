@@ -16,9 +16,22 @@ export interface CreateWalletPayload {
   minimum_limit: number;
 }
 
+export interface UpdateWalletPayload {
+  name: string;
+  description?: string;
+  minimum_limit: number;
+}
+
 export const getWallets = () =>
   apiClient.get<{ data: Wallet[] }>('/family/wallets');
 
 export const createWallet = (payload: CreateWalletPayload) =>
-  apiClient.post('/family/wallets', payload);
+  apiClient.post<{ message: string; data: Wallet }>('/family/wallets', payload);
+
+export const updateWallet = (id: string, payload: UpdateWalletPayload) =>
+  apiClient.patch<{ message: string; data: Wallet }>(`/family/wallets/${id}`, payload);
+
+export const deleteWallet = (id: string) =>
+  apiClient.delete(`/family/wallets/${id}`);
+
 
