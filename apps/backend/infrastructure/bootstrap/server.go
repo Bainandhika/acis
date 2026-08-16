@@ -96,8 +96,11 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	// Telegram & Resend Client Setup
 	tgToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	tgClient := telegram.NewClient(tgToken)
-	resendApiKey := os.Getenv("RESEND_API_KEY")
-	resendSender := notification.NewResendSender(resendApiKey)
+	resendApiKey := s.cfg.Email.APIKey
+	if resendApiKey == "" {
+		resendApiKey = os.Getenv("RESEND_API_KEY")
+	}
+	resendSender := notification.NewResendSender(resendApiKey, s.cfg.Email.From)
 
 	// Register Outbox Notification Handlers
 	s.workerPool.RegisterHandler("email_otp", func(ctx context.Context, job notification.NotificationJob) error {
