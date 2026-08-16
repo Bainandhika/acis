@@ -1,35 +1,44 @@
 server:
-  port: "8080"
-  mode: "debug" # debuu | release
+  port: "${PORT:8080}"
+  mode: "${GIN_MODE:release}" # debug | release
 
 database:
-  host: "localhost"
-  port: "5432"
-  user: "${DB_USER}"
-  password: "${DB_PASSWORD}"
-  name: "${DB_NAME}"
-  ssl_mode: "disable"
+  url: "${DATABASE_URL:}"
+  host: "${DB_HOST:localhost}"
+  port: "${DB_PORT:5432}"
+  user: "${DB_USER:acis_user}"
+  password: "${DB_PASSWORD:acis_secret_password}"
+  name: "${DB_NAME:acis_db}"
+  ssl_mode: "${DB_SSLMODE:require}"
   time_zone: "Asia/Jakarta"
 
 jwt:
   secret: "${JWT_SECRET}"
-  expiry: "15m"
+  expiry: "${JWT_EXPIRY:15m}"
 
 log:
   dir: "./logs"
-  level: "debug" # debug | info | error | warn
+  level: "${LOG_LEVEL:info}" # debug | info | warn | error
 
 redis:
-  host: "localhost"
-  port: "6379"
-  password: "${REDIS_PASSWORD}"
-  db: "${REDIS_DB}"
+  url: "${REDIS_URL:}"
+  host: "${REDIS_HOST:localhost}"
+  port: "${REDIS_PORT:6379}"
+  password: "${REDIS_PASSWORD:}"
+  db: "${REDIS_DB:0}"
 
 otp:
-  ttl: 300 # in seconds
+  ttl: "${OTP_TTL:5m}"
   encryption_key: "${OTP_ENCRYPTION_KEY}"
 
 email:
   api_key: "${RESEND_API_KEY}"
-  from: "onboarding@resend.dev"
+  from: "${RESEND_FROM:onboarding@resend.dev}"
 
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN:}"
+  webhook_secret: "${TELEGRAM_WEBHOOK_SECRET:}"
+
+cors:
+  allowed_origins:
+    - "http://localhost:5173"
