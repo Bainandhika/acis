@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { getMyFamily, createFamily, joinFamily, updateFamilySettings, disconnectTelegram, type Family } from '../services/family';
+import { getMyFamily, createFamily, joinFamily, updateFamilyName, updateFamilySettings, disconnectTelegram, type Family } from '../services/family';
 
 export const useFamilyStore = defineStore('family', () => {
   const family = ref<Family | null>(null);
@@ -12,10 +12,28 @@ export const useFamilyStore = defineStore('family', () => {
     error.value = null;
     try {
       const response = await getMyFamily();
-      family.value = response.data;
+      family.value = response.data.data;
     } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to fetch family profile';
+      if (err.response?.status !== 404) {
+        error.value = err.response?.data?.error || 'Failed to fetch family profile';
+      }
       family.value = null;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function handleUpdateFamilyName(name: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await updateFamilyName(name);
+      if (family.value) {
+        family.value.name = name;
+      }
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to update family name';
+      throw err;
     } finally {
       loading.value = false;
     }
@@ -92,6 +110,7 @@ export const useFamilyStore = defineStore('family', () => {
     loading, 
     error, 
     fetchMyFamily, 
+    handleUpdateFamilyName,
     handleCreateFamily, 
     handleJoinFamily, 
     handleUpdateSettings, 
