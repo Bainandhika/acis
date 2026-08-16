@@ -108,7 +108,7 @@ const handleVerifyOTP = async () => {
             :class="locale === 'en' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
             type="button"
           >
-            🇬🇧 EN
+            EN
           </button>
           <button 
             @click="setLocale('id')"
@@ -116,7 +116,7 @@ const handleVerifyOTP = async () => {
             :class="locale === 'id' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
             type="button"
           >
-            🇮🇩 ID
+            ID
           </button>
         </div>
       </div>
