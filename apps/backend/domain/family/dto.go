@@ -3,8 +3,8 @@ package family
 import "time"
 
 type CreateFamilyReq struct {
-	Name          string  `json:"name" binding:"required,min=3,max=50"`
-	MonthlyIncome float64 `json:"monthly_income" binding:"gte=0"`
+	Name          string   `json:"name" binding:"required,min=2,max=255"`
+	MonthlyIncome *float64 `json:"monthly_income"`
 }
 
 type JoinFamilyReq struct {
@@ -12,7 +12,14 @@ type JoinFamilyReq struct {
 }
 
 type UpdateFamilySettingsReq struct {
-	MonthlyIncome *float64 `json:"monthly_income,omitempty" binding:"omitempty,gte=0"`
+	MonthlyIncome *float64 `json:"monthly_income"`
+}
+
+type FamilyMemberDTO struct {
+	ID       string    `json:"id"`
+	UserID   string    `json:"user_id"`
+	Role     string    `json:"role"`
+	JoinedAt time.Time `json:"joined_at"`
 }
 
 type FamilyDTO struct {
@@ -26,19 +33,11 @@ type FamilyDTO struct {
 	CreatedAt      time.Time         `json:"created_at"`
 }
 
-type FamilyMemberDTO struct {
-	ID       string    `json:"id"`
-	UserID   string    `json:"user_id"`
-	UserName string    `json:"user_name"`
-	Role     string    `json:"role"`
-	JoinedAt time.Time `json:"joined_at"`
-}
-
 type CreateWalletReq struct {
-	Name           string  `json:"name" binding:"required,min=2,max=50"`
-	Description    *string `json:"description,omitempty"`
-	InitialBalance float64 `json:"initial_balance" binding:"gte=0"`
-	MinimumLimit   float64 `json:"minimum_limit" binding:"gte=0"`
+	Name           string  `json:"name" binding:"required,min=2,max=255"`
+	Description    *string `json:"description"`
+	InitialBalance float64 `json:"initial_balance"`
+	MinimumLimit   float64 `json:"minimum_limit"`
 }
 
 type WalletDTO struct {
@@ -60,10 +59,10 @@ type WalletBalanceDTO struct {
 }
 
 type LowBalanceWalletDTO struct {
-	WalletID       string  `json:"wallet_id"`
-	WalletName     string  `json:"wallet_name"`
-	FamilyID       string  `json:"family_id"`
-	CurrentBalance float64 `json:"current_balance"`
-	MinimumLimit   float64 `json:"minimum_limit"`
-	TelegramChatID *int64  `json:"telegram_chat_id,omitempty"`
+	WalletID       string  `db:"wallet_id" json:"wallet_id"`
+	WalletName     string  `db:"wallet_name" json:"wallet_name"`
+	FamilyID       string  `db:"family_id" json:"family_id"`
+	CurrentBalance float64 `db:"current_balance" json:"current_balance"`
+	MinimumLimit   float64 `db:"minimum_limit" json:"minimum_limit"`
+	TelegramChatID *int64  `db:"telegram_chat_id" json:"telegram_chat_id"`
 }
