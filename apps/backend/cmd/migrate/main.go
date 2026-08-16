@@ -10,37 +10,45 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 type Config struct {
-	DBHost     string
-	DBPort     string
-	DBUser     string
-	DBPassword string
-	DBName     string
+	DatabaseURL string
+	DBHost      string
+	DBPort      string
+	DBUser      string
+	DBPassword  string
+	DBName      string
+	DBSSLMode   string
 }
 
 func main() {
-	// 1. Load .env dari CURRENT directory (karena kita run dari apps/backend)
 	if err := godotenv.Load(".env"); err != nil {
-		log.Println("Warning: .env file not found")
+		_ = godotenv.Load("../.env")
+		_ = godotenv.Load("../../.env")
 	}
 
 	config := Config{
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "acis_user"),
-		DBPassword: getEnv("DB_PASSWORD", "acis_secret_password"),
-		DBName:     getEnv("DB_NAME", "acis_db"),
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DBHost:      getEnv("DB_HOST", "localhost"),
+		DBPort:      getEnv("DB_PORT", "5432"),
+		DBUser:      getEnv("DB_USER", "acis_user"),
+		DBPassword:  getEnv("DB_PASSWORD", "acis_secret_password"),
+		DBName:      getEnv("DB_NAME", "acis_db"),
+		DBSSLMode:   getEnv("DB_SSLMODE", "disable"),
 	}
 
-	// Connect to database
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		config.DBHost, config.DBPort, config.DBUser, config.DBPassword, config.DBName,
-	)
+	var dsn string
+	if config.DatabaseURL != "" {
+		dsn = config.DatabaseURL
+	} else {
+		dsn = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			config.DBHost, config.DBPort, config.DBUser, config.DBPassword, config.DBName, config.DBSSLMode,
+		)
+	}
 
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
@@ -48,14 +56,41 @@ func main() {
 	}
 	defer db.Close()
 
-	log.Println("✅ Connected to database")
+	log.Println(" Connected to database")
 
 	// Create migrations tracking table
 	createMigrationsTable(db)
 
-	// 2. Run migrations
-	// Dari apps/backend, path ke root/migrations adalah ../../migrations
-	runMigrations(db, "../migrations")
+	// Resolve migrations directory from multiple candidate paths
+	migrationsDir := resolveMigrationsDir()
+	log.Printf("📂 Using migrations directory: %s\n", migrationsDir)
+
+	// Run migrations
+	runMigrations(db, migrationsDir)
+}
+
+func resolveMigrationsDir() string {
+	if dir := os.Getenv("MIGRATIONS_DIR"); dir != "" {
+		if _, err := os.Stat(dir); err == nil {
+			return dir
+		}
+	}
+
+	candidates := []string{
+		"../migrations",
+		"../../migrations",
+		"./migrations",
+		"apps/migrations",
+		"/app/migrations",
+	}
+
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+
+	return "../migrations"
 }
 
 func createMigrationsTable(db *sqlx.DB) {
@@ -68,25 +103,21 @@ func createMigrationsTable(db *sqlx.DB) {
 	if _, err := db.Exec(query); err != nil {
 		log.Fatalf("Failed to create migrations table: %v", err)
 	}
-	log.Println("✅ Migrations tracking table ready")
+	log.Println(" Migrations tracking table ready")
 }
 
 func runMigrations(db *sqlx.DB, migrationsDir string) {
-	// Get list of migration files
 	files, err := ioutil.ReadDir(migrationsDir)
 	if err != nil {
 		log.Fatalf("Failed to read migrations directory %s: %v", migrationsDir, err)
 	}
 
-	// Sort files by name
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].Name() < files[j].Name()
 	})
 
-	// Get applied migrations
 	applied := getAppliedMigrations(db)
 
-	// Apply pending migrations
 	for _, file := range files {
 		if !strings.HasSuffix(file.Name(), ".sql") {
 			continue
@@ -97,16 +128,14 @@ func runMigrations(db *sqlx.DB, migrationsDir string) {
 			continue
 		}
 
-		log.Printf("🔄 Applying migration: %s", file.Name())
+		log.Printf(" Applying migration: %s", file.Name())
 
-		// Read SQL file
 		filePath := filepath.Join(migrationsDir, file.Name())
 		content, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			log.Fatalf("Failed to read migration file %s: %v", file.Name(), err)
 		}
 
-		// Execute migration in transaction
 		tx, err := db.Begin()
 		if err != nil {
 			log.Fatalf("Failed to begin transaction: %v", err)
@@ -117,7 +146,6 @@ func runMigrations(db *sqlx.DB, migrationsDir string) {
 			log.Fatalf("Failed to execute migration %s: %v", file.Name(), err)
 		}
 
-		// Record migration
 		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", file.Name()); err != nil {
 			tx.Rollback()
 			log.Fatalf("Failed to record migration %s: %v", file.Name(), err)
@@ -127,7 +155,7 @@ func runMigrations(db *sqlx.DB, migrationsDir string) {
 			log.Fatalf("Failed to commit migration %s: %v", file.Name(), err)
 		}
 
-		log.Printf("✅ Applied %s", file.Name())
+		log.Printf(" Applied %s", file.Name())
 	}
 
 	log.Println(" All migrations completed successfully")
@@ -149,7 +177,7 @@ func getAppliedMigrations(db *sqlx.DB) map[string]bool {
 }
 
 func getEnv(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists {
+	if value, exists := os.LookupEnv(key); exists && value != "" {
 		return value
 	}
 	return defaultValue
