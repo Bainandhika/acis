@@ -34,6 +34,7 @@ type Server struct {
 	router         *gin.Engine
 	workerPool     *worker.WorkerPool
 	poller         *worker.OutboxPoller
+	botPoller      *telegram.BotPoller
 	reminderWorker *telegram.LowBalanceWorker
 	otpCache       *cache.OTPCache
 	limiter        *cache.TokenBucketLimiter
@@ -126,19 +127,10 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	s.poller = worker.NewOutboxPoller(outboxRepo, s.workerPool, 1*time.Minute, 20, s.redisClient)
 	s.poller.Start(context.Background())
 
-	// Telegram & Resend Client Setup
+	// Telegram Client Setup
 	tgClient := telegram.NewClient(s.cfg.Telegram.BotToken)
-	resendSender := notification.NewResendSender(s.cfg.Email.APIKey, s.cfg.Email.From)
 
 	// Register Outbox Notification Handlers
-	s.workerPool.RegisterHandler("email_otp", func(ctx context.Context, job notification.NotificationJob) error {
-		var payload map[string]string
-		if err := json.Unmarshal(job.Payload, &payload); err != nil {
-			return err
-		}
-		log.Printf("📧 Outbox worker sending Email OTP to %s\n", job.Recipient)
-		return resendSender.SendOTP(ctx, job.Recipient, payload["code"])
-	})
 	s.workerPool.RegisterHandler("proposal_approved", func(ctx context.Context, job notification.NotificationJob) error {
 		log.Printf("🔔 Outbox worker sending Proposal Approved notification to %s\n", job.Recipient)
 		return nil
@@ -167,7 +159,18 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	if err != nil {
 		otpTTL = 5 * time.Minute
 	}
-	authSvc := authentication.NewService(authRepo, roleFinder, outboxRepo, s.otpCache, tokenStore, s.db, s.cfg.JWT.Secret, otpTTL)
+	authSvc := authentication.NewService(
+		authRepo,
+		roleFinder,
+		outboxRepo,
+		s.otpCache,
+		tokenStore,
+		tgClient,
+		s.db,
+		s.cfg.JWT.Secret,
+		s.cfg.Telegram.BotUsername,
+		otpTTL,
+	)
 	isProduction := s.cfg.Server.Mode == "release"
 	authHandler := authentication.NewAuthHandler(authSvc, isProduction)
 
@@ -180,9 +183,14 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 
 	tgTxAdapter := NewTelegramTxAdapter(txSvc)
 	tgFamAdapter := NewTelegramFamilyAdapter(familySvc)
+	authSessionAdapter := NewAuthSessionAdapter(s.otpCache, authRepo)
 
-	botService := telegram.NewBotService(tgTxAdapter, tgFamAdapter, tgClient)
+	botService := telegram.NewBotService(tgTxAdapter, tgFamAdapter, authSessionAdapter, tgClient)
 	webhookHandler := telegram.NewWebhookHandler(botService, tgClient)
+
+	// Start Telegram Bot Poller to listen for incoming messages/commands in real-time
+	s.botPoller = telegram.NewBotPoller(tgClient, botService)
+	s.botPoller.Start(context.Background())
 
 	s.reminderWorker = telegram.NewLowBalanceWorker(tgFamAdapter, outboxRepo, s.db, 1*time.Hour)
 	s.reminderWorker.Start(context.Background())
@@ -216,7 +224,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 
 			c.JSON(statusCode, gin.H{
 				"status":      "ok",
-				"version":     "1.2.0",
+				"version":     "1.3.0",
 				"environment": s.cfg.Server.Mode,
 				"database": gin.H{
 					"status":     dbStatus,
@@ -300,6 +308,9 @@ func (s *Server) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	if s.botPoller != nil {
+		s.botPoller.Stop()
+	}
 	if s.reminderWorker != nil {
 		s.reminderWorker.Stop()
 	}
