@@ -464,6 +464,7 @@ const rejectProp = async (id: string) => {
       :active-tab="activeTab"
       @select-tab="activeTab = $event"
       @open-telegram-modal="isTelegramModalOpen = true"
+      @open-family-manage="openFamilyManageModal"
     />
 
     <!-- Main Container -->
@@ -474,11 +475,14 @@ const rejectProp = async (id: string) => {
       <!-- 1. Family                                                                 -->
       <!-- 2. Overall Financial Summary                                              -->
       <!-- 3. Wallets                                                                -->
-      <!-- 4. Expense Analysis by Category                                           -->
+      <!-- 4. Allocation                                           -->
       <!-- 5. Recent History                                                         -->
       <!-- ========================================================================= -->
-      <div v-if="activeTab === 'dashboard'" class="flex flex-col gap-8">
-        
+      <div v-if="activeTab === 'dashboard'" class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+
+        <!-- LEFT COLUMN -->
+        <div class="flex flex-col gap-8">
+
         <!-- 1. WIDGET: Family -->
         <section class="flex flex-col gap-4">
           <div class="card-neo p-6 sm:p-8 flex flex-col gap-6">
@@ -548,19 +552,19 @@ const rejectProp = async (id: string) => {
                 {{ t('dashboard.familyMembers.noMembers') }}
               </div>
 
-              <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div 
                   v-for="member in realFamilyMembers" 
                   :key="member.id"
-                  class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100/90 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition"
+                  class="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/60 flex items-center justify-between gap-3.5 hover:bg-white hover:border-slate-300/80 hover:shadow-sm transition"
                 >
-                  <div class="flex items-center gap-3 min-w-0">
+                  <div class="flex items-center gap-3 min-w-0 flex-1">
                     <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-700 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-sm">
                       {{ (member.user_name || (member.user_id === authStore.user?.id ? authStore.user?.username : 'U') || 'U').charAt(0).toUpperCase() }}
                     </div>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
-                        <h4 class="text-xs font-black text-slate-900 truncate">
+                        <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate">
                           {{ member.user_name || (member.user_id === authStore.user?.id ? (authStore.user?.username || authStore.user?.name) : (`${t('dashboard.familyMembers.member')} #${member.user_id.slice(0, 6)}`)) }}
                         </h4>
                         <span 
@@ -570,13 +574,13 @@ const rejectProp = async (id: string) => {
                           {{ t('modals.familyManage.youBadge') }}
                         </span>
                       </div>
-                      <span class="text-[10px] text-slate-400 font-medium">
+                      <span class="text-[10px] text-slate-400 font-medium block whitespace-nowrap mt-0.5">
                         {{ t('dashboard.familyMembers.joined') }} {{ new Date(member.joined_at).toLocaleDateString('id-ID') }}
                       </span>
                     </div>
                   </div>
                   <span 
-                    class="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full shrink-0"
+                    class="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap"
                     :class="member.role === 'admin' ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-white text-slate-700 border border-slate-200/80'"
                   >
                     {{ member.role === 'admin' ? t('dashboard.familyMembers.adminRole') : t('dashboard.familyMembers.memberRole') }}
@@ -648,6 +652,11 @@ const rejectProp = async (id: string) => {
             </div>
           </div>
         </section>
+
+        </div><!-- /LEFT COLUMN -->
+
+        <!-- RIGHT COLUMN -->
+        <div class="flex flex-col gap-8">
 
         <!-- 3. WIDGET: Wallets -->
         <section class="flex flex-col gap-4">
@@ -723,7 +732,7 @@ const rejectProp = async (id: string) => {
           </div>
         </section>
 
-        <!-- 4. WIDGET: Expense Analysis by Category -->
+        <!-- 4. WIDGET: Allocation -->
         <section class="flex flex-col gap-4">
           <div>
             <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">
@@ -828,6 +837,8 @@ const rejectProp = async (id: string) => {
             </div>
           </div>
         </section>
+
+        </div><!-- /RIGHT COLUMN -->
 
       </div>
 
