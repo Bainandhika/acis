@@ -24,6 +24,19 @@ func (m *MockTransactionRepository) GetTransactionsByFamilyID(ctx context.Contex
 	return args.Get(0).([]transaction.Transaction), args.Error(1)
 }
 
+func (m *MockTransactionRepository) GetTransactionByID(ctx context.Context, txID string) (*transaction.Transaction, error) {
+	args := m.Called(ctx, txID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*transaction.Transaction), args.Error(1)
+}
+
+func (m *MockTransactionRepository) DeleteTransaction(ctx context.Context, exec transaction.DBExecutor, txID string) error {
+	args := m.Called(ctx, exec, txID)
+	return args.Error(0)
+}
+
 func (m *MockTransactionRepository) CreateProposal(ctx context.Context, prop *transaction.Proposal) error {
 	args := m.Called(ctx, prop)
 	return args.Error(0)
