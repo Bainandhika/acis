@@ -42,21 +42,35 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string) err
 		return fmt.Errorf("failed to marshal telegram payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		return fmt.Errorf("failed to create telegram request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	// Retry up to 3 times for transient failures
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(bodyBytes))
+		if err != nil {
+			return fmt.Errorf("failed to create telegram request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send telegram request: %w", err)
-	}
-	defer resp.Body.Close()
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(attempt*200) * time.Millisecond)
+			continue
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("telegram API returned status: %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusOK {
+			_ = resp.Body.Close()
+			return nil
+		}
+
+		_ = resp.Body.Close()
+		lastErr = fmt.Errorf("telegram API returned status: %d", resp.StatusCode)
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			// Client-side errors (invalid chat_id or token) should not be retried
+			break
+		}
+		time.Sleep(time.Duration(attempt*200) * time.Millisecond)
 	}
 
-	return nil
+	return lastErr
 }
