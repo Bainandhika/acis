@@ -3,6 +3,7 @@ import apiClient from './api';
 export interface FamilyMember {
   id: string;
   user_id: string;
+  user_name?: string;
   role: 'admin' | 'member';
   joined_at: string;
 }
@@ -25,10 +26,14 @@ export const joinFamily = (invite_code: string) =>
   apiClient.post<{ message: string; data: Family }>('/family/join', { invite_code });
 
 export const getMyFamily = () =>
-  apiClient.get<Family>('/family/me');
+  apiClient.get<{ data: Family }>('/family/me');
+
+export const updateFamilyName = (name: string) =>
+  apiClient.patch('/family', { name });
 
 export const updateFamilySettings = (monthly_income: number) =>
   apiClient.patch('/family/settings', { monthly_income });
 
 export const disconnectTelegram = () =>
   apiClient.post('/family/telegram/disconnect');
+
