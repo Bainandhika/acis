@@ -1,4 +1,4 @@
-# 💰 ACIS (Aplikasi Catatan Keuangan Istri/Suami)
+# 💰 ACIS - Manajemen Keuangan Keluarga
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://golang.org/)
 [![Vue Version](https://img.shields.io/badge/Vue-3.x-4FC08D?logo=vue.js)](https://vuejs.org/)
