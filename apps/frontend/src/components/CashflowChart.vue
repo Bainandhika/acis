@@ -112,8 +112,8 @@ const formatCurrency = (val: number) => {
           <span>{{ t('dashboard.financialSummary.income') }}</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="w-2.5 h-2.5 rounded-sm bg-slate-300"></span>
-          <span>{{ t('dashboard.financialSummary.expense') }}</span>
+          <span class="w-2.5 h-2.5 rounded-sm bg-rose-500"></span>
+          <span class="text-rose-600 font-bold">{{ t('dashboard.financialSummary.expense') }}</span>
         </div>
       </div>
     </div>
@@ -145,7 +145,7 @@ const formatCurrency = (val: number) => {
             <span>• {{ t('dashboard.financialSummary.income') }}</span>
             <span class="font-mono font-bold">{{ formatCurrency(item.income) }}</span>
           </div>
-          <div class="flex justify-between items-center text-rose-300">
+          <div class="flex justify-between items-center text-rose-400">
             <span>• {{ t('dashboard.financialSummary.expense') }}</span>
             <span class="font-mono font-bold">{{ formatCurrency(item.expense) }}</span>
           </div>
@@ -165,10 +165,10 @@ const formatCurrency = (val: number) => {
             class="w-full bg-brand-500 transition-all duration-300"
             :style="{ height: getBarHeight(item.income, idx === hoveredIndex) }"
           ></div>
-          <!-- Bottom segment (Expenses) -->
+          <!-- Bottom segment (Expenses) with Red color and vibrant hover highlight -->
           <div 
             v-if="item.expense > 0"
-            class="w-full bg-slate-300 transition-all duration-300"
+            class="w-full bg-rose-500 group-hover:bg-rose-600 transition-all duration-300"
             :style="{ height: getBarHeight(item.expense, idx === hoveredIndex) }"
           ></div>
           <!-- Empty Base Indicator when 0 -->
