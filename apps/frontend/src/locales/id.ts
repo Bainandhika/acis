@@ -15,6 +15,8 @@ export const id = {
     botOffline: 'Bot Nonaktif',
     signOut: 'Keluar',
     signOutConfirm: 'Apakah Anda yakin ingin keluar?',
+    editProfile: 'Ubah Ruang Kerja & Keluarga',
+    userMenu: 'Menu Pengguna',
     inviteCode: 'Kode',
     copied: 'Tersalin!',
     copyCode: 'Salin Kode Undangan',
@@ -23,7 +25,7 @@ export const id = {
   // Login View
   login: {
     title: 'Selamat Datang di ACIS',
-    subtitle: 'Manajemen Keuangan Cerdas',
+    subtitle: 'Manajemen Keuangan Keluarga',
     tabSignIn: 'Masuk',
     tabSignUp: 'Daftar',
     usernameLabel: 'Nama Pengguna',
@@ -80,7 +82,7 @@ export const id = {
     financialSummary: {
       title: 'Ringkasan Keuangan Keseluruhan',
       subtitle: 'Performa arus kas riil 7 hari terakhir',
-      recordTxBtn: '+ Catat Transaksi',
+      recordTxBtn: 'Catat Transaksi',
       totalBalance: 'Total Saldo',
       totalBalanceDesc: 'Jumlah total semua amplop dompet aktif',
       sevenDaysIncome: 'Pemasukan 7 Hari',
@@ -103,7 +105,7 @@ export const id = {
       minLimit: 'Batas Minimum',
     },
     expenseAnalysis: {
-      title: 'Analisis Pengeluaran per Kategori',
+      title: 'Alokasi',
       subtitle: 'Distribusi pengeluaran aktual berdasarkan kategori',
       totalExpenses: 'Total Pengeluaran 7 Hari',
       noExpenses: 'Tidak ada transaksi pengeluaran tercatat dalam 7 hari terakhir.',
@@ -154,7 +156,7 @@ export const id = {
   transactionsTab: {
     title: 'Riwayat Transaksi',
     subtitle: 'Catatan lengkap seluruh pemasukan dan pengeluaran',
-    recordBtn: '+ Catat Transaksi',
+    recordBtn: 'Catat Transaksi',
     noTransactions: 'Tidak ada transaksi ditemukan.',
     timestampCol: 'Waktu',
     walletCol: 'Dompet',
@@ -183,8 +185,8 @@ export const id = {
   submissionsTab: {
     title: 'Pengajuan Transaksi & Proposal',
     subtitle: 'Ajukan transaksi baru atau proposal pengeluaran untuk persetujuan Admin',
-    recordDirectBtn: '+ Catat Transaksi Langsung',
-    submitProposalBtn: '+ Ajukan Proposal',
+    recordDirectBtn: 'Catat Transaksi Langsung',
+    submitProposalBtn: 'Ajukan Proposal',
     proposalsTitle: 'Proposal Pengeluaran yang Diajukan',
     noProposals: 'Belum ada proposal pengeluaran yang diajukan.',
     pending: 'Menunggu',
