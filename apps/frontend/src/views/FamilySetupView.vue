@@ -8,7 +8,6 @@ const router = useRouter()
 
 const activeTab = ref<'create' | 'join'>('create')
 const familyName = ref('')
-const monthlyIncome = ref<number | null>(null)
 const inviteCode = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
@@ -18,10 +17,10 @@ const handleCreate = async () => {
   loading.value = true
   errorMessage.value = ''
   try {
-    await familyStore.handleCreateFamily(familyName.value.trim(), monthlyIncome.value || 0)
+    await familyStore.handleCreateFamily(familyName.value.trim(), 0)
     router.push('/')
   } catch {
-    errorMessage.value = familyStore.error || 'Gagal membuat keluarga.'
+    errorMessage.value = familyStore.error || 'Failed to create family group.'
   } finally {
     loading.value = false
   }
@@ -35,7 +34,7 @@ const handleJoin = async () => {
     await familyStore.handleJoinFamily(inviteCode.value.trim().toUpperCase())
     router.push('/')
   } catch {
-    errorMessage.value = familyStore.error || 'Kode invite tidak valid.'
+    errorMessage.value = familyStore.error || 'Invalid or expired invite code.'
   } finally {
     loading.value = false
   }
@@ -44,7 +43,7 @@ const handleJoin = async () => {
 
 <template>
   <div class="flex items-center justify-center min-h-screen bg-[#F8FAFC] p-4 relative overflow-hidden">
-    <!-- Ambient glow circles -->
+    <!-- Ambient glow decorative circles -->
     <div class="absolute top-1/4 right-1/4 w-96 h-96 bg-brand-200/40 rounded-full blur-3xl pointer-events-none"></div>
     <div class="absolute bottom-1/4 left-1/4 w-80 h-80 bg-lime-200/30 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -55,10 +54,10 @@ const handleJoin = async () => {
           🏠
         </div>
         <h2 class="text-2xl font-black text-slate-900 tracking-tight">
-          Setup Grup Keluarga
+          Family Setup
         </h2>
         <p class="text-xs text-slate-400 font-medium mt-1">
-          Buat grup keluarga baru atau bergabung via kode undangan
+          Create a new family workspace or join an existing one using an invite code
         </p>
       </div>
 
@@ -72,44 +71,35 @@ const handleJoin = async () => {
         <span>{{ errorMessage }}</span>
       </div>
 
-      <!-- Custom Segmented Tabs -->
+      <!-- Segmented Tabs -->
       <div class="flex p-1 bg-slate-100 rounded-2xl mb-6 text-xs font-extrabold">
         <button 
           class="flex-1 py-2.5 rounded-xl transition-all"
           :class="activeTab === 'create' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
           @click="activeTab = 'create'"
         >
-          Buat Keluarga
+          Create Family
         </button>
         <button 
           class="flex-1 py-2.5 rounded-xl transition-all"
           :class="activeTab === 'join' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
           @click="activeTab = 'join'"
         >
-          Gabung Keluarga
+          Join Family
         </button>
       </div>
 
-      <!-- Tab 1: Create Family -->
+      <!-- Tab 1: Create Family (Family Name Only) -->
       <div v-if="activeTab === 'create'" class="flex flex-col gap-4">
         <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">Nama Keluarga</label>
+          <label class="text-xs font-bold text-slate-700 block mb-1.5">Family Name</label>
           <input 
             type="text" 
             v-model="familyName" 
-            placeholder="Contoh: Keluarga Pratama" 
+            placeholder="e.g. Smith Family" 
             class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
+            @keyup.enter="familyName.trim() && handleCreate()"
           />
-        </div>
-        <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">Estimasi Pendapatan Bulanan (Rp)</label>
-          <input 
-            type="number" 
-            v-model.number="monthlyIncome" 
-            placeholder="15000000" 
-            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
-          />
-          <p class="text-[10px] text-slate-400 mt-1">Digunakan untuk acuan batas limit & alokasi amplop.</p>
         </div>
 
         <button 
@@ -117,22 +107,23 @@ const handleJoin = async () => {
           :disabled="loading || !familyName.trim()"
           @click="handleCreate"
         >
-          {{ loading ? 'Memproses...' : 'Buat Grup Keluarga' }}
+          {{ loading ? 'Creating Workspace...' : 'Create Family Group' }}
         </button>
       </div>
 
-      <!-- Tab 2: Join Family -->
+      <!-- Tab 2: Join Family (Invite Code) -->
       <div v-else class="flex flex-col gap-4">
         <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5 text-center">Kode Invite (6 Karakter)</label>
+          <label class="text-xs font-bold text-slate-700 block mb-1.5 text-center">Invite Code (6 Characters)</label>
           <input 
             type="text" 
             v-model="inviteCode" 
-            placeholder="Contoh: AB12CD" 
+            placeholder="e.g. SMTH01" 
             maxlength="6"
             class="w-full py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-center text-2xl font-black tracking-[0.3em] uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition font-mono" 
+            @keyup.enter="inviteCode.trim().length === 6 && handleJoin()"
           />
-          <p class="text-[10px] text-slate-400 text-center mt-1.5">Minta kode invite 6 karakter ke Admin keluarga Anda.</p>
+          <p class="text-[10px] text-slate-400 text-center mt-1.5">Ask your Family Admin for the 6-character invitation code.</p>
         </div>
 
         <button 
@@ -140,7 +131,7 @@ const handleJoin = async () => {
           :disabled="loading || inviteCode.trim().length !== 6"
           @click="handleJoin"
         >
-          {{ loading ? 'Memproses...' : 'Gabung ke Keluarga' }}
+          {{ loading ? 'Joining Family...' : 'Join Family Group' }}
         </button>
       </div>
     </div>
