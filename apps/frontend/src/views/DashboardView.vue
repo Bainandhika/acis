@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from '../locales'
 import type { Wallet, CreateWalletPayload, UpdateWalletPayload } from '../services/wallet'
 import type { Transaction, CreateTransactionPayload, CreateProposalPayload } from '../services/transaction'
+import type { FamilyMember } from '../services/family'
 
 // Component imports
 import TopNavbar, { type NavTab } from '../components/TopNavbar.vue'
@@ -30,7 +31,8 @@ const isEditWalletModalOpen = ref(false)
 const isDeleteWalletModalOpen = ref(false)
 const isTxModalOpen = ref(false)
 const isDeleteTxModalOpen = ref(false)
-const isEditFamilyModalOpen = ref(false)
+const isFamilyManageModalOpen = ref(false)
+const isDeleteMemberModalOpen = ref(false)
 const isProposalModalOpen = ref(false)
 const isTelegramModalOpen = ref(false)
 
@@ -40,7 +42,8 @@ const isEditWalletSubmitting = ref(false)
 const isDeleteWalletSubmitting = ref(false)
 const isTxSubmitting = ref(false)
 const isDeleteTxSubmitting = ref(false)
-const isEditFamilySubmitting = ref(false)
+const isFamilyManageSubmitting = ref(false)
+const isDeleteMemberSubmitting = ref(false)
 const isProposalSubmitting = ref(false)
 
 // Role Check
@@ -63,6 +66,7 @@ const editWalletData = ref<{ id: string; name: string; description: string; mini
 
 const deleteWalletTarget = ref<Wallet | null>(null)
 const deleteTxTarget = ref<Transaction | null>(null)
+const deleteMemberTarget = ref<FamilyMember | null>(null)
 const editFamilyName = ref('')
 
 const newTx = ref<CreateTransactionPayload>({
@@ -311,28 +315,50 @@ const handleConfirmDeleteWallet = async () => {
   }
 }
 
-// Modal actions - Rename Family
-const openEditFamilyModal = () => {
+// Modal actions - Family Management & Member Deletion
+const openFamilyManageModal = () => {
   editFamilyName.value = familyStore.family?.name || ''
-  isEditFamilyModalOpen.value = true
+  isFamilyManageModalOpen.value = true
 }
-const closeEditFamilyModal = () => {
-  isEditFamilyModalOpen.value = false
+const closeFamilyManageModal = () => {
+  isFamilyManageModalOpen.value = false
   editFamilyName.value = ''
 }
-const handleSubmitEditFamily = async () => {
+const handleSubmitEditFamilyName = async () => {
   if (!editFamilyName.value.trim()) return
-  isEditFamilySubmitting.value = true
+  isFamilyManageSubmitting.value = true
   try {
     await familyStore.handleUpdateFamilyName(editFamilyName.value.trim())
-    closeEditFamilyModal()
     showToast(t('toasts.familyUpdated'), 'success')
   } catch (err: any) {
     showToast(err.response?.data?.error || 'Failed to rename family workspace', 'error')
   } finally {
-    isEditFamilySubmitting.value = false
+    isFamilyManageSubmitting.value = false
   }
 }
+
+const openDeleteMemberModal = (member: FamilyMember) => {
+  deleteMemberTarget.value = member
+  isDeleteMemberModalOpen.value = true
+}
+const closeDeleteMemberModal = () => {
+  isDeleteMemberModalOpen.value = false
+  deleteMemberTarget.value = null
+}
+const handleConfirmDeleteMember = async () => {
+  if (!deleteMemberTarget.value) return
+  isDeleteMemberSubmitting.value = true
+  try {
+    await familyStore.handleRemoveMember(deleteMemberTarget.value.id)
+    showToast(t('toasts.memberRemoved'), 'success')
+    closeDeleteMemberModal()
+  } catch (err: any) {
+    showToast(err.response?.data?.error || t('toasts.memberRemoveFailed'), 'error')
+  } finally {
+    isDeleteMemberSubmitting.value = false
+  }
+}
+
 
 // Modal actions - Create Transaction
 const openTxModal = () => {
@@ -464,10 +490,9 @@ const rejectProp = async (id: string) => {
                     {{ t('dashboard.family.title') }}
                   </span>
                   <button 
-                    v-if="isAdmin"
-                    @click="router.push('/family-setup')"
+                    @click="openFamilyManageModal()"
                     class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition text-xs flex items-center gap-1 font-bold"
-                    :title="t('modals.editFamily.title')"
+                    :title="t('modals.familyManage.title')"
                   >
                     <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M12 20h9"></path>
@@ -1190,26 +1215,145 @@ const rejectProp = async (id: string) => {
       </form>
     </dialog>
 
-    <!-- 4. Modal Rename Family Workspace -->
-    <dialog :class="isEditFamilyModalOpen ? 'modal modal-open' : 'modal'">
-      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
-        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.editFamily.title') }}</h3>
-        <p class="text-xs text-slate-400 mb-4">{{ t('modals.editFamily.subtitle') }}</p>
+    <!-- 4. Modal Family Management -->
+    <dialog :class="isFamilyManageModalOpen ? 'modal modal-open' : 'modal'">
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-xl">
+        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.familyManage.title') }}</h3>
+        <p class="text-xs text-slate-400 mb-4">{{ t('modals.familyManage.subtitle') }}</p>
 
-        <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.editFamily.nameLabel') }}</label>
-          <input type="text" v-model="editFamilyName" :placeholder="t('modals.editFamily.namePlaceholder')" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+        <!-- Error State Banner -->
+        <div v-if="familyStore.error" class="mb-4 p-3.5 bg-rose-50 border border-rose-100 rounded-2xl text-rose-800 text-xs font-semibold flex items-center gap-2">
+          <span>❌</span>
+          <span class="flex-1">{{ familyStore.error }}</span>
         </div>
 
+        <!-- Permission Denied Banner if non-admin -->
+        <div v-if="!isAdmin" class="mb-4 p-3.5 bg-amber-50 border border-amber-100 rounded-2xl text-amber-800 text-xs font-semibold flex items-center gap-2">
+          <span>⚠️</span>
+          <span class="flex-1">{{ t('modals.familyManage.permissionDenied') }}</span>
+        </div>
+
+        <!-- Workspace Name Editing (Admin only) -->
+        <div v-if="isAdmin" class="mb-6 pb-6 border-b border-slate-100">
+          <label class="text-xs font-bold text-slate-700 block mb-1.5">{{ t('modals.familyManage.nameLabel') }}</label>
+          <div class="flex gap-2">
+            <input 
+              type="text" 
+              v-model="editFamilyName" 
+              :placeholder="t('modals.familyManage.namePlaceholder')" 
+              class="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" 
+            />
+            <button 
+              class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition disabled:opacity-50"
+              @click="handleSubmitEditFamilyName"
+              :disabled="isFamilyManageSubmitting || !editFamilyName.trim() || editFamilyName.trim() === familyStore.family?.name"
+            >
+              {{ isFamilyManageSubmitting ? t('modals.familyManage.savingName') : t('modals.familyManage.saveName') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Members list block -->
+        <div>
+          <h4 class="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
+            {{ t('modals.familyManage.membersTitle') }} ({{ realFamilyMembers.length }})
+          </h4>
+
+          <!-- Loading State inside modal -->
+          <div v-if="familyStore.loading && realFamilyMembers.length === 0" class="flex flex-col gap-2">
+            <div v-for="i in 3" :key="i" class="h-14 bg-slate-50 animate-pulse rounded-2xl"></div>
+          </div>
+
+          <!-- Members Grid/List -->
+          <div v-else class="flex flex-col gap-2.5 max-h-64 overflow-y-auto pr-1">
+            <div 
+              v-for="member in realFamilyMembers" 
+              :key="member.id"
+              class="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3 hover:bg-slate-100/70 transition"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-900 to-slate-700 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+                  {{ (member.user_name || (member.user_id === authStore.user?.id ? authStore.user?.username : 'U') || 'U').charAt(0).toUpperCase() }}
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <h5 class="text-xs font-black text-slate-900 truncate">
+                      {{ member.user_name || (member.user_id === authStore.user?.id ? (authStore.user?.username || authStore.user?.name) : (`${t('dashboard.familyMembers.member')} #${member.user_id.slice(0, 6)}`)) }}
+                    </h5>
+                    <!-- You Indicator -->
+                    <span 
+                      v-if="member.user_id === authStore.user?.id" 
+                      class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-brand-400 text-slate-950 tracking-wider shrink-0"
+                    >
+                      {{ t('modals.familyManage.youBadge') }}
+                    </span>
+                  </div>
+                  <span class="text-[9px] text-slate-400 font-medium">
+                    {{ t('dashboard.familyMembers.joined') }} {{ new Date(member.joined_at).toLocaleDateString('id-ID') }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <!-- Role Badge -->
+                <span 
+                  class="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full shrink-0 border"
+                  :class="member.role === 'admin' ? 'bg-amber-100 text-amber-900 border-amber-200' : 'bg-white text-slate-700 border-slate-200'"
+                >
+                  {{ member.role === 'admin' ? t('dashboard.familyMembers.adminRole') : t('dashboard.familyMembers.memberRole') }}
+                </span>
+
+                <!-- Member delete button (admin only, hidden for self) -->
+                <button 
+                  v-if="isAdmin && member.user_id !== authStore.user?.id"
+                  @click="openDeleteMemberModal(member)"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                  :title="t('modals.familyManage.removeMember')"
+                >
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-action mt-6">
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeFamilyManageModal">{{ t('modals.familyManage.cancel') }}</button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop">
+        <button type="button" @click="closeFamilyManageModal">close</button>
+      </form>
+    </dialog>
+
+    <!-- Modal Confirm Delete Member -->
+    <dialog :class="isDeleteMemberModalOpen ? 'modal modal-open' : 'modal'">
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-rose-100 max-w-md">
+        <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
+          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="8.5" cy="7" r="4"></circle>
+            <line x1="18" y1="8" x2="23" y2="13"></line>
+            <line x1="23" y1="8" x2="18" y2="13"></line>
+          </svg>
+        </div>
+        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.familyManage.confirmRemoveTitle') }}</h3>
+        <p class="text-xs text-slate-500 mb-4">
+          {{ t('modals.familyManage.confirmRemoveDesc').replace('{name}', deleteMemberTarget?.user_name || '') }}
+        </p>
+
         <div class="modal-action mt-6 gap-2">
-          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeEditFamilyModal" :disabled="isEditFamilySubmitting">{{ t('modals.editFamily.cancel') }}</button>
-          <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitEditFamily" :disabled="isEditFamilySubmitting || !editFamilyName.trim()">
-            {{ isEditFamilySubmitting ? t('modals.editFamily.saving') : t('modals.editFamily.save') }}
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeDeleteMemberModal" :disabled="isDeleteMemberSubmitting">{{ t('modals.confirmDelete.cancel') }}</button>
+          <button class="btn bg-rose-600 hover:bg-rose-700 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleConfirmDeleteMember" :disabled="isDeleteMemberSubmitting">
+            {{ isDeleteMemberSubmitting ? t('modals.familyManage.removingBtn') : t('modals.familyManage.confirmRemoveBtn') }}
           </button>
         </div>
       </div>
       <form method="dialog" class="modal-backdrop">
-        <button type="button" @click="closeEditFamilyModal">close</button>
+        <button type="button" @click="closeDeleteMemberModal">close</button>
       </form>
     </dialog>
 
