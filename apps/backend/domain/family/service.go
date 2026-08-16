@@ -29,6 +29,7 @@ type FamilyService interface {
 	GetWalletBalances(ctx context.Context, familyID string) ([]WalletBalanceDTO, error)
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
 	GetMembers(ctx context.Context, familyID string) ([]FamilyMemberDTO, error)
+	RemoveMember(ctx context.Context, requesterUserID, memberID, familyID string) error
 }
 
 type familyService struct {
@@ -369,6 +370,42 @@ func (s *familyService) GetWalletBalances(ctx context.Context, familyID string) 
 
 func (s *familyService) GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error) {
 	return s.repo.GetLowBalanceWallets(ctx)
+}
+
+func (s *familyService) RemoveMember(ctx context.Context, requesterUserID, memberID, familyID string) error {
+	member, err := s.repo.FindMemberByID(ctx, memberID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return errors.New("member not found")
+	}
+
+	if member.FamilyID != familyID {
+		return errors.New("unauthorized member deletion")
+	}
+
+	if member.UserID == requesterUserID {
+		return errors.New("cannot remove yourself from the family")
+	}
+
+	if member.Role == "admin" {
+		members, err := s.repo.GetMembers(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		adminCount := 0
+		for _, m := range members {
+			if m.Role == "admin" {
+				adminCount++
+			}
+		}
+		if adminCount <= 1 {
+			return errors.New("cannot remove the last admin of the family")
+		}
+	}
+
+	return s.repo.RemoveMember(ctx, memberID, familyID)
 }
 
 func generateInviteCode() (string, error) {
