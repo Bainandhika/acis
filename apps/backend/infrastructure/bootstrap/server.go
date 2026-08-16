@@ -264,13 +264,17 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	familyProtected.Use(middleware.AuthMiddleware(s.cfg.JWT.Secret))
 	familyProtected.Use(middleware.FamilyContextMiddleware(s.db))
 	{
+		familyProtected.PATCH("/family", middleware.RequireRole("admin"), familyHandler.UpdateFamily)
 		familyProtected.PATCH("/family/settings", middleware.RequireRole("admin"), familyHandler.UpdateSettings)
 		familyProtected.POST("/family/telegram/disconnect", middleware.RequireRole("admin"), familyHandler.DisconnectTelegram)
 
 		familyProtected.POST("/family/wallets", middleware.RequireRole("admin"), familyHandler.CreateWallet)
+		familyProtected.PATCH("/family/wallets/:id", middleware.RequireRole("admin"), familyHandler.UpdateWallet)
+		familyProtected.DELETE("/family/wallets/:id", middleware.RequireRole("admin"), familyHandler.DeleteWallet)
 		familyProtected.GET("/family/wallets", familyHandler.GetWallets)
 
 		familyProtected.POST("/transaction", middleware.RequireRole("admin"), txHandler.CreateTransaction)
+		familyProtected.DELETE("/transaction/:id", middleware.RequireRole("admin"), txHandler.DeleteTransaction)
 		familyProtected.GET("/transaction", txHandler.GetTransactions)
 		familyProtected.POST("/transaction/proposals", txHandler.CreateProposal)
 		familyProtected.GET("/transaction/proposals", txHandler.GetProposals)
