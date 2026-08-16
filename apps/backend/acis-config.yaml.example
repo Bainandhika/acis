@@ -29,3 +29,7 @@ otp:
   ttl: 300 # in seconds
   encryption_key: "${OTP_ENCRYPTION_KEY}"
 
+email:
+  api_key: "${RESEND_API_KEY}"
+  from: "onboarding@resend.dev"
+
