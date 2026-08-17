@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Bainandhika/acis/apps/backend/domain/telegram"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/notification"
+	"github.com/Bainandhika/acis/apps/backend/infrastructure/telegramclient"
 	"github.com/Bainandhika/acis/apps/backend/shared/cache"
 	"github.com/Bainandhika/acis/apps/backend/shared/security"
 	"github.com/google/uuid"
@@ -44,7 +44,7 @@ type authService struct {
 	outboxRepo  notification.OutboxRepository
 	otpCache    *cache.OTPCache
 	tokenStore  *cache.RefreshTokenStore
-	tgClient    *telegram.Client
+	tgClient    *telegramclient.Client
 	db          *database.AppDB
 	jwtSecret   string
 	botUsername string
@@ -57,7 +57,7 @@ func NewService(
 	outboxRepo notification.OutboxRepository,
 	otpCache *cache.OTPCache,
 	tokenStore *cache.RefreshTokenStore,
-	tgClient *telegram.Client,
+	tgClient *telegramclient.Client,
 	db *database.AppDB,
 	jwtSecret string,
 	botUsername string,

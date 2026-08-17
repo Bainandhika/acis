@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Bainandhika/acis/apps/backend/domain/authentication"
-	"github.com/Bainandhika/acis/apps/backend/domain/telegram"
+	"github.com/Bainandhika/acis/apps/backend/infrastructure/telegramclient"
 	"github.com/Bainandhika/acis/apps/backend/shared/cache"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -58,7 +58,7 @@ func TestAuthService_RequestOTP_SignIn_Success(t *testing.T) {
 	tokenStore := cache.NewRefreshTokenStore(rdb)
 
 	mockRepo := new(MockAuthRepo)
-	tgClient := telegram.NewClient("")
+	tgClient := telegramclient.NewClient("")
 	authSvc := authentication.NewService(mockRepo, nil, nil, otpCache, tokenStore, tgClient, nil, "jwt_secret_123", "acis_bot", 5*time.Minute)
 
 	ctx := context.Background()
@@ -92,7 +92,7 @@ func TestAuthService_RequestOTP_SignIn_UnregisteredPhone(t *testing.T) {
 	tokenStore := cache.NewRefreshTokenStore(rdb)
 
 	mockRepo := new(MockAuthRepo)
-	tgClient := telegram.NewClient("")
+	tgClient := telegramclient.NewClient("")
 	authSvc := authentication.NewService(mockRepo, nil, nil, otpCache, tokenStore, tgClient, nil, "jwt_secret_123", "acis_bot", 5*time.Minute)
 
 	ctx := context.Background()
@@ -119,7 +119,7 @@ func TestAuthService_RequestOTP_SignUp_Success(t *testing.T) {
 	tokenStore := cache.NewRefreshTokenStore(rdb)
 
 	mockRepo := new(MockAuthRepo)
-	tgClient := telegram.NewClient("")
+	tgClient := telegramclient.NewClient("")
 	authSvc := authentication.NewService(mockRepo, nil, nil, otpCache, tokenStore, tgClient, nil, "jwt_secret_123", "acis_bot", 5*time.Minute)
 
 	ctx := context.Background()
@@ -148,7 +148,7 @@ func TestAuthService_RequestOTP_SignUp_DuplicatePhone(t *testing.T) {
 	tokenStore := cache.NewRefreshTokenStore(rdb)
 
 	mockRepo := new(MockAuthRepo)
-	tgClient := telegram.NewClient("")
+	tgClient := telegramclient.NewClient("")
 	authSvc := authentication.NewService(mockRepo, nil, nil, otpCache, tokenStore, tgClient, nil, "jwt_secret_123", "acis_bot", 5*time.Minute)
 
 	ctx := context.Background()
@@ -180,7 +180,7 @@ func TestAuthService_RequestOTP_TestUserBypass(t *testing.T) {
 	tokenStore := cache.NewRefreshTokenStore(rdb)
 
 	mockRepo := new(MockAuthRepo)
-	tgClient := telegram.NewClient("")
+	tgClient := telegramclient.NewClient("")
 	authSvc := authentication.NewService(mockRepo, nil, nil, otpCache, tokenStore, tgClient, nil, "jwt_secret_12345678901234567890", "acis_bot", 5*time.Minute)
 
 	ctx := context.Background()
@@ -224,7 +224,7 @@ func TestAuthService_RequestOTP_InvalidPhoneFormat(t *testing.T) {
 	tokenStore := cache.NewRefreshTokenStore(rdb)
 
 	mockRepo := new(MockAuthRepo)
-	tgClient := telegram.NewClient("")
+	tgClient := telegramclient.NewClient("")
 	authSvc := authentication.NewService(mockRepo, nil, nil, otpCache, tokenStore, tgClient, nil, "jwt_secret_123", "acis_bot", 5*time.Minute)
 
 	ctx := context.Background()
