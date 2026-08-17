@@ -33,8 +33,21 @@ services:
     volumes:
       - redis_data:/data
 
+  acis_bot:
+    build:
+      context: ./apps/bot
+      dockerfile: Dockerfile
+    container_name: acis_bot
+    depends_on:
+      - acis_db
+      - redis
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      BACKEND_BASE_URL: http://backend:8080
+      BOT_INTERNAL_SECRET: ${BOT_INTERNAL_SECRET:-changeme_internal_bot_secret_key}
+    restart: unless-stopped
+
 volumes:
   acis_data:
   pgadmin_data:
   redis_data:
-
