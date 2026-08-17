@@ -7,7 +7,7 @@ import { useTransactionStore } from '../stores/transaction'
 import { useRouter } from 'vue-router'
 import { useI18n } from '../locales'
 
-export type NavTab = 'dashboard' | 'wallets' | 'transactions' | 'reports' | 'submissions'
+export type NavTab = 'dashboard' | 'wallets' | 'transaksi' | 'reports'
 
 const props = defineProps<{
   activeTab: NavTab
@@ -113,9 +113,9 @@ const handleLogout = async () => {
           </button>
 
           <button
-            @click="emit('select-tab', 'transactions')"
+            @click="emit('select-tab', 'transaksi')"
             class="px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            :class="activeTab === 'transactions' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'"
+            :class="activeTab === 'transaksi' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'"
           >
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="17 1 21 5 17 9"></polyline>
@@ -123,7 +123,7 @@ const handleLogout = async () => {
               <polyline points="7 23 3 19 7 15"></polyline>
               <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
             </svg>
-            <span class="whitespace-nowrap">{{ t('nav.transactions') }}</span>
+            <span class="whitespace-nowrap">{{ t('nav.transaksi') }}</span>
           </button>
 
           <button
@@ -138,18 +138,6 @@ const handleLogout = async () => {
               <path d="M8 17v-3"></path>
             </svg>
             <span class="whitespace-nowrap">{{ t('nav.reports') }}</span>
-          </button>
-
-          <button
-            @click="emit('select-tab', 'submissions')"
-            class="px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            :class="activeTab === 'submissions' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'"
-          >
-            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14"></path>
-              <path d="M5 12h14"></path>
-            </svg>
-            <span class="whitespace-nowrap">{{ t('nav.submissions') }}</span>
           </button>
         </nav>
       </div>
@@ -248,7 +236,7 @@ const handleLogout = async () => {
               </div>
             </div>
 
-            <!-- Option 1: Edit Workspace / Family -->
+            <!-- Option 1: Edit Family Room -->
             <button
               @click="emit('open-family-manage'); isUserMenuOpen = false"
               class="w-full px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition flex items-center gap-2.5 text-left"
@@ -330,9 +318,9 @@ const handleLogout = async () => {
               <span>{{ t('nav.wallets') }}</span>
             </button>
             <button
-              @click="emit('select-tab', 'transactions'); isMobileMenuOpen = false"
+              @click="emit('select-tab', 'transaksi'); isMobileMenuOpen = false"
               class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2.5 transition"
-              :class="activeTab === 'transactions' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+              :class="activeTab === 'transaksi' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
             >
               <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="17 1 21 5 17 9"></polyline>
@@ -340,7 +328,7 @@ const handleLogout = async () => {
                 <polyline points="7 23 3 19 7 15"></polyline>
                 <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
               </svg>
-              <span>{{ t('nav.transactions') }}</span>
+              <span>{{ t('nav.transaksi') }}</span>
             </button>
             <button
               @click="emit('select-tab', 'reports'); isMobileMenuOpen = false"
@@ -354,17 +342,6 @@ const handleLogout = async () => {
                 <path d="M8 17v-3"></path>
               </svg>
               <span>{{ t('nav.reports') }}</span>
-            </button>
-            <button
-              @click="emit('select-tab', 'submissions'); isMobileMenuOpen = false"
-              class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-left flex items-center gap-2.5 transition"
-              :class="activeTab === 'submissions' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
-            >
-              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 5v14"></path>
-                <path d="M5 12h14"></path>
-              </svg>
-              <span>{{ t('nav.submissions') }}</span>
             </button>
           </div>
         </div>
