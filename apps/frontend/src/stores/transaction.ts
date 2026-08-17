@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { 
   getTransactions, 
   createTransaction, 
+  updateTransaction,
   deleteTransaction,
   getProposals, 
   createProposal, 
@@ -11,6 +12,7 @@ import {
   type Transaction, 
   type Proposal, 
   type CreateTransactionPayload, 
+  type UpdateTransactionPayload,
   type CreateProposalPayload 
 } from '../services/transaction';
 
@@ -41,6 +43,20 @@ export const useTransactionStore = defineStore('transaction', () => {
       await fetchTransactions();
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to record transaction';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function editTransaction(id: string, payload: UpdateTransactionPayload) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await updateTransaction(id, payload);
+      await fetchTransactions();
+    } catch (err: any) {
+      error.value = err.response?.data?.error || 'Failed to update transaction';
       throw err;
     } finally {
       loading.value = false;
@@ -131,6 +147,7 @@ export const useTransactionStore = defineStore('transaction', () => {
     error,
     fetchTransactions,
     addTransaction,
+    editTransaction,
     removeTransaction,
     fetchProposals,
     addProposal,

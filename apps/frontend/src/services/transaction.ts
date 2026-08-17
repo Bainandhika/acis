@@ -6,7 +6,6 @@ export interface Transaction {
   user_id?: string;
   type: 'income' | 'expense';
   amount: number;
-  category: string;
   description?: string;
   created_at: string;
 }
@@ -15,7 +14,13 @@ export interface CreateTransactionPayload {
   wallet_id: string;
   type: 'income' | 'expense';
   amount: number;
-  category: string;
+  description?: string;
+}
+
+export interface UpdateTransactionPayload {
+  wallet_id?: string;
+  type: 'income' | 'expense';
+  amount: number;
   description?: string;
 }
 
@@ -27,6 +32,9 @@ export interface Proposal {
   amount: number;
   description: string;
   status: 'pending' | 'approved' | 'rejected';
+  request_type?: 'add_transaction' | 'edit_transaction' | 'delete_transaction';
+  target_transaction_id?: string;
+  payload?: any;
   reviewed_by?: string;
   reviewed_at?: string;
   created_at: string;
@@ -37,6 +45,9 @@ export interface CreateProposalPayload {
   title: string;
   amount: number;
   description: string;
+  request_type: 'add_transaction' | 'edit_transaction' | 'delete_transaction';
+  target_transaction_id?: string;
+  payload?: any;
 }
 
 export const getTransactions = () =>
@@ -44,6 +55,9 @@ export const getTransactions = () =>
 
 export const createTransaction = (payload: CreateTransactionPayload) =>
   apiClient.post<{ data: Transaction }>('/transaction', payload);
+
+export const updateTransaction = (id: string, payload: UpdateTransactionPayload) =>
+  apiClient.patch<{ data: Transaction }>(`/transaction/${id}`, payload);
 
 export const getProposals = () =>
   apiClient.get<{ data: Proposal[] }>('/transaction/proposals');
@@ -59,4 +73,3 @@ export const rejectProposal = (proposalId: string) =>
 
 export const deleteTransaction = (transactionId: string) =>
   apiClient.delete(`/transaction/${transactionId}`);
-
