@@ -2,6 +2,7 @@ import apiClient from './api';
 
 export interface Wallet {
   id: string;
+  short_id?: string;
   name: string;
   description: string;
   initial_balance: number;
