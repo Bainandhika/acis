@@ -30,10 +30,12 @@ const isWalletModalOpen = ref(false)
 const isEditWalletModalOpen = ref(false)
 const isDeleteWalletModalOpen = ref(false)
 const isTxModalOpen = ref(false)
+const isEditTxModalOpen = ref(false)
+const isChangeRequestModalOpen = ref(false)
+const isDeleteRequestModalOpen = ref(false)
 const isDeleteTxModalOpen = ref(false)
 const isFamilyManageModalOpen = ref(false)
 const isDeleteMemberModalOpen = ref(false)
-const isProposalModalOpen = ref(false)
 const isTelegramModalOpen = ref(false)
 
 // Independent Submitting States
@@ -41,10 +43,12 @@ const isWalletSubmitting = ref(false)
 const isEditWalletSubmitting = ref(false)
 const isDeleteWalletSubmitting = ref(false)
 const isTxSubmitting = ref(false)
+const isEditTxSubmitting = ref(false)
+const isChangeRequestSubmitting = ref(false)
+const isDeleteRequestSubmitting = ref(false)
 const isDeleteTxSubmitting = ref(false)
 const isFamilyManageSubmitting = ref(false)
 const isDeleteMemberSubmitting = ref(false)
-const isProposalSubmitting = ref(false)
 
 // Role Check
 const isAdmin = computed(() => authStore.user?.role === 'admin')
@@ -66,6 +70,9 @@ const editWalletData = ref<{ id: string; name: string; description: string; mini
 
 const deleteWalletTarget = ref<Wallet | null>(null)
 const deleteTxTarget = ref<Transaction | null>(null)
+const selectedTxForEdit = ref<Transaction | null>(null)
+const selectedTxForChangeRequest = ref<Transaction | null>(null)
+const selectedTxForDeleteRequest = ref<Transaction | null>(null)
 const deleteMemberTarget = ref<FamilyMember | null>(null)
 const editFamilyName = ref('')
 
@@ -73,16 +80,34 @@ const newTx = ref<CreateTransactionPayload>({
   wallet_id: '',
   type: 'expense',
   amount: 0,
-  category: 'General',
   description: '',
 })
 
-const newProposal = ref<CreateProposalPayload>({
+const editTxForm = ref<{
+  id: string
+  wallet_id: string
+  type: 'income' | 'expense'
+  amount: number
+  description: string
+}>({
+  id: '',
   wallet_id: '',
-  title: '',
+  type: 'expense',
   amount: 0,
   description: '',
 })
+
+const changeRequestForm = ref<{
+  type: 'income' | 'expense'
+  amount: number
+  description: string
+}>({
+  type: 'expense',
+  amount: 0,
+  description: '',
+})
+
+const deleteRequestReason = ref('')
 
 // Metrics & Analytics Calculations (Strictly from real data, initialized to 0)
 const totalBalance = computed(() => {
@@ -111,8 +136,8 @@ const sevenDaysExpense = computed(() => {
     .reduce((sum, t) => sum + (t?.amount || 0), 0)
 })
 
-// Expense Analysis by category (last 7 days strictly from real data)
-const categoryPalette = [
+// Expense Analysis by Wallet (last 7 days strictly from real data)
+const walletPalette = [
   'bg-amber-400',
   'bg-emerald-400',
   'bg-sky-400',
@@ -133,19 +158,19 @@ const expenseAnalysis = computed(() => {
     }
   }
 
-  const categoryMap: Record<string, number> = {}
+  const walletMap: Record<string, number> = {}
   expenseTxs.forEach(t => {
-    const cat = t.category?.trim() || 'General'
-    categoryMap[cat] = (categoryMap[cat] || 0) + (t.amount || 0)
+    const wName = getWalletName(t.wallet_id)
+    walletMap[wName] = (walletMap[wName] || 0) + (t.amount || 0)
   })
 
-  const categories = Object.entries(categoryMap).map(([name, amount], index) => {
+  const categories = Object.entries(walletMap).map(([name, amount], index) => {
     const percentage = Math.round((amount / total) * 100)
     return {
       name,
       amount,
       percentage,
-      color: categoryPalette[index % categoryPalette.length]
+      color: walletPalette[index % walletPalette.length]
     }
   }).sort((a, b) => b.amount - a.amount)
 
@@ -331,7 +356,7 @@ const handleSubmitEditFamilyName = async () => {
     await familyStore.handleUpdateFamilyName(editFamilyName.value.trim())
     showToast(t('toasts.familyUpdated'), 'success')
   } catch (err: any) {
-    showToast(err.response?.data?.error || 'Failed to rename family workspace', 'error')
+    showToast(err.response?.data?.error || 'Failed to rename family room', 'error')
   } finally {
     isFamilyManageSubmitting.value = false
   }
@@ -360,42 +385,176 @@ const handleConfirmDeleteMember = async () => {
 }
 
 
-// Modal actions - Create Transaction
+// Modal actions - Create Transaction / Submit Proposal
 const openTxModal = () => {
   if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
     newTx.value.wallet_id = selectedWalletId.value || walletStore.wallets[0].id
   } else {
     newTx.value.wallet_id = ''
   }
+  newTx.value.amount = 0
+  newTx.value.description = ''
+  newTx.value.type = 'expense'
   isTxModalOpen.value = true
 }
+
 const closeTxModal = () => {
   isTxModalOpen.value = false
-  newTx.value = { wallet_id: '', type: 'expense', amount: 0, category: 'General', description: '' }
+  newTx.value = { wallet_id: '', type: 'expense', amount: 0, description: '' }
 }
+
 const handleSubmitTx = async () => {
   isTxSubmitting.value = true
   try {
-    await txStore.addTransaction(newTx.value)
-    await walletStore.fetchWallets()
-    closeTxModal()
-    showToast(t('toasts.txRecorded'), 'success')
+    if (isAdmin.value) {
+      await txStore.addTransaction(newTx.value)
+      await walletStore.fetchWallets()
+      closeTxModal()
+      showToast(t('toasts.txRecorded'), 'success')
+    } else {
+      await txStore.addProposal({
+        wallet_id: newTx.value.wallet_id,
+        title: newTx.value.description || (newTx.value.type === 'income' ? 'Pengajuan Pemasukan' : 'Pengajuan Pengeluaran'),
+        amount: newTx.value.amount,
+        description: newTx.value.description || '',
+        request_type: 'add_transaction',
+      })
+      closeTxModal()
+      showToast(t('toasts.txSubmitted'), 'success')
+    }
   } catch (err: any) {
-    showToast(err.response?.data?.error || 'Failed to record transaction', 'error')
+    showToast(err.response?.data?.error || 'Failed to submit transaction', 'error')
   } finally {
     isTxSubmitting.value = false
   }
 }
 
-// Modal actions - Delete Transaction
+// Direct Edit (Admin)
+const openEditTxModal = (tx: Transaction) => {
+  selectedTxForEdit.value = tx
+  editTxForm.value = {
+    id: tx.id,
+    wallet_id: tx.wallet_id,
+    type: tx.type,
+    amount: tx.amount,
+    description: tx.description || '',
+  }
+  isEditTxModalOpen.value = true
+}
+
+const closeEditTxModal = () => {
+  isEditTxModalOpen.value = false
+  selectedTxForEdit.value = null
+}
+
+const handleSubmitEditTx = async () => {
+  if (!editTxForm.value.id) return
+  isEditTxSubmitting.value = true
+  try {
+    await txStore.editTransaction(editTxForm.value.id, {
+      wallet_id: editTxForm.value.wallet_id,
+      type: editTxForm.value.type,
+      amount: editTxForm.value.amount,
+      description: editTxForm.value.description || undefined,
+    })
+    await walletStore.fetchWallets()
+    closeEditTxModal()
+    showToast(t('toasts.txUpdated'), 'success')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Failed to update transaction', 'error')
+  } finally {
+    isEditTxSubmitting.value = false
+  }
+}
+
+// Change Request (Member)
+const openChangeRequestModal = (tx: Transaction) => {
+  selectedTxForChangeRequest.value = tx
+  changeRequestForm.value = {
+    type: tx.type,
+    amount: tx.amount,
+    description: '',
+  }
+  isChangeRequestModalOpen.value = true
+}
+
+const closeChangeRequestModal = () => {
+  isChangeRequestModalOpen.value = false
+  selectedTxForChangeRequest.value = null
+}
+
+const handleSubmitChangeRequest = async () => {
+  if (!selectedTxForChangeRequest.value) return
+  isChangeRequestSubmitting.value = true
+  try {
+    const orig = selectedTxForChangeRequest.value
+    await txStore.addProposal({
+      wallet_id: orig.wallet_id,
+      title: `Ubah Transaksi: ${orig.description || formatCurrency(orig.amount)}`,
+      amount: changeRequestForm.value.amount,
+      description: changeRequestForm.value.description || 'Permintaan perubahan transaksi',
+      request_type: 'edit_transaction',
+      target_transaction_id: orig.id,
+      payload: {
+        type: changeRequestForm.value.type,
+        amount: changeRequestForm.value.amount,
+        description: changeRequestForm.value.description,
+      },
+    })
+    closeChangeRequestModal()
+    showToast(t('toasts.changeRequested'), 'success')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Failed to submit change request', 'error')
+  } finally {
+    isChangeRequestSubmitting.value = false
+  }
+}
+
+// Delete Request (Member)
+const openDeleteRequestModal = (tx: Transaction) => {
+  selectedTxForDeleteRequest.value = tx
+  deleteRequestReason.value = ''
+  isDeleteRequestModalOpen.value = true
+}
+
+const closeDeleteRequestModal = () => {
+  isDeleteRequestModalOpen.value = false
+  selectedTxForDeleteRequest.value = null
+}
+
+const handleSubmitDeleteRequest = async () => {
+  if (!selectedTxForDeleteRequest.value) return
+  isDeleteRequestSubmitting.value = true
+  try {
+    const orig = selectedTxForDeleteRequest.value
+    await txStore.addProposal({
+      wallet_id: orig.wallet_id,
+      title: `Hapus Transaksi: ${orig.description || formatCurrency(orig.amount)}`,
+      amount: orig.amount,
+      description: deleteRequestReason.value || 'Permintaan penghapusan transaksi',
+      request_type: 'delete_transaction',
+      target_transaction_id: orig.id,
+    })
+    closeDeleteRequestModal()
+    showToast(t('toasts.deleteRequested'), 'success')
+  } catch (err: any) {
+    showToast(err.response?.data?.error || 'Failed to submit delete request', 'error')
+  } finally {
+    isDeleteRequestSubmitting.value = false
+  }
+}
+
+// Direct Delete (Admin)
 const openDeleteTxModal = (tx: Transaction) => {
   deleteTxTarget.value = tx
   isDeleteTxModalOpen.value = true
 }
+
 const closeDeleteTxModal = () => {
   isDeleteTxModalOpen.value = false
   deleteTxTarget.value = null
 }
+
 const handleConfirmDeleteTx = async () => {
   if (!deleteTxTarget.value) return
   isDeleteTxSubmitting.value = true
@@ -411,48 +570,26 @@ const handleConfirmDeleteTx = async () => {
   }
 }
 
-// Modal actions - Proposal
-const openProposalModal = () => {
-  if (walletStore.wallets.length > 0 && walletStore.wallets[0]) {
-    newProposal.value.wallet_id = selectedWalletId.value || walletStore.wallets[0].id
-  } else {
-    newProposal.value.wallet_id = ''
-  }
-  isProposalModalOpen.value = true
-}
-const closeProposalModal = () => {
-  isProposalModalOpen.value = false
-  newProposal.value = { wallet_id: '', title: '', amount: 0, description: '' }
-}
-const handleSubmitProposal = async () => {
-  isProposalSubmitting.value = true
-  try {
-    await txStore.addProposal(newProposal.value)
-    closeProposalModal()
-    showToast(t('toasts.proposalSubmitted'), 'success')
-  } catch (err: any) {
-    showToast(err.response?.data?.error || 'Failed to submit proposal', 'error')
-  } finally {
-    isProposalSubmitting.value = false
-  }
-}
+const pendingProposals = computed(() => {
+  return (txStore.proposals || []).filter(p => p?.status === 'pending')
+})
 
 const approveProp = async (id: string) => {
   try {
     await txStore.handleApprove(id)
     await walletStore.fetchWallets()
-    showToast(t('toasts.proposalApproved'), 'success')
+    showToast(t('toasts.requestApproved'), 'success')
   } catch (err: any) {
-    showToast(err.response?.data?.error || 'Failed to approve proposal', 'error')
+    showToast(err.response?.data?.error || 'Failed to approve request', 'error')
   }
 }
 
 const rejectProp = async (id: string) => {
   try {
     await txStore.handleReject(id)
-    showToast(t('toasts.proposalRejected'), 'info')
+    showToast(t('toasts.requestRejected'), 'info')
   } catch (err: any) {
-    showToast(err.response?.data?.error || 'Failed to reject proposal', 'error')
+    showToast(err.response?.data?.error || 'Failed to reject request', 'error')
   }
 }
 </script>
@@ -507,7 +644,7 @@ const rejectProp = async (id: string) => {
                   </button>
                 </div>
                 <h2 class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mt-2">
-                  {{ familyStore.family?.name || 'ACIS Workspace' }}
+                  {{ familyStore.family?.name || 'ACIS Family Room' }}
                 </h2>
                 <p class="text-xs text-slate-400 font-medium mt-1">
                   {{ t('dashboard.family.subtitle') }}
@@ -799,7 +936,7 @@ const rejectProp = async (id: string) => {
               </p>
             </div>
             <button 
-              @click="activeTab = 'transactions'" 
+              @click="activeTab = 'transaksi'" 
               class="text-xs font-bold text-brand-600 hover:text-brand-700"
             >
               {{ t('dashboard.recentHistory.viewAll') }}
@@ -827,7 +964,7 @@ const rejectProp = async (id: string) => {
                       {{ new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) }}
                     </td>
                     <td class="py-2.5 px-4 font-bold text-slate-800 text-[11px] truncate max-w-[100px]">{{ getWalletName(tx.wallet_id) }}</td>
-                    <td class="py-2.5 px-4 text-slate-700 text-[11px] truncate max-w-[120px]">{{ tx.description || tx.category || '-' }}</td>
+                    <td class="py-2.5 px-4 text-slate-700 text-[11px] truncate max-w-[120px]">{{ tx.description || '-' }}</td>
                     <td class="py-2.5 px-4 text-right font-mono font-bold text-xs" :class="tx.type === 'income' ? 'text-emerald-600' : 'text-slate-900'">
                       {{ tx.type === 'income' ? '+' : '-' }}{{ formatCurrency(tx.amount) }}
                     </td>
@@ -880,7 +1017,10 @@ const rejectProp = async (id: string) => {
             <div>
               <div class="flex items-start justify-between">
                 <div>
-                  <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{{ t('dashboard.wallets.envelope') }}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{{ t('dashboard.wallets.envelope') }}</span>
+                    <span v-if="w.short_id" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-brand-100 text-brand-900">ID: {{ w.short_id }}</span>
+                  </div>
                   <h3 class="text-lg font-black text-slate-900 mt-1">{{ w.name }}</h3>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -931,42 +1071,47 @@ const rejectProp = async (id: string) => {
       </div>
 
       <!-- ========================================================================= -->
-      <!-- TAB 3: TRANSACTION HISTORY TAB                                            -->
+      <!-- TAB 3: TRANSAKSI TAB (Unified History, Action Buttons & Pending Widget)    -->
       <!-- ========================================================================= -->
-      <div v-else-if="activeTab === 'transactions'" class="flex flex-col gap-6">
+      <div v-else-if="activeTab === 'transaksi'" class="flex flex-col gap-8">
+        <!-- Top Title & Action Button -->
         <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
-            <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">{{ t('transactionsTab.title') }}</h2>
-            <p class="text-xs text-slate-500 mt-0.5">{{ t('transactionsTab.subtitle') }}</p>
+            <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">{{ t('transaksiTab.title') }}</h2>
+            <p class="text-xs text-slate-500 mt-0.5">{{ t('transaksiTab.subtitle') }}</p>
           </div>
           <button 
             @click="openTxModal" 
-            class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition shadow-sm"
+            class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition shadow-sm flex items-center gap-2"
           >
-            {{ t('transactionsTab.recordBtn') }}
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>{{ isAdmin ? t('transaksiTab.recordBtn') : t('transaksiTab.submitBtn') }}</span>
           </button>
         </div>
 
+        <!-- Transaction History Table -->
         <div class="card-neo overflow-hidden p-0 border border-slate-200/80">
           <div v-if="txStore.loading && txStore.transactions.length === 0" class="p-8 text-center text-xs text-slate-400">
             <span class="loading loading-spinner loading-md"></span>
           </div>
 
           <div v-else-if="txStore.transactions.length === 0" class="py-16 text-center text-xs text-slate-400">
-            {{ t('transactionsTab.noTransactions') }}
+            {{ t('transaksiTab.noTransactions') }}
           </div>
 
           <div v-else class="overflow-x-auto">
             <table class="w-full text-left text-xs">
               <thead class="bg-slate-50 border-b border-slate-200/80 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th class="py-4 px-6">{{ t('transactionsTab.timestampCol') }}</th>
-                  <th class="py-4 px-6">{{ t('transactionsTab.walletCol') }}</th>
-                  <th class="py-4 px-6">{{ t('transactionsTab.typeCol') }}</th>
-                  <th class="py-4 px-6">{{ t('transactionsTab.categoryCol') }}</th>
-                  <th class="py-4 px-6">{{ t('transactionsTab.descriptionCol') }}</th>
-                  <th class="py-4 px-6 text-right">{{ t('transactionsTab.amountCol') }}</th>
-                  <th v-if="isAdmin" class="py-4 px-4 text-center">{{ t('transactionsTab.actionCol') }}</th>
+                  <th class="py-4 px-6">{{ t('transaksiTab.timestampCol') }}</th>
+                  <th class="py-4 px-6">{{ t('transaksiTab.walletCol') }}</th>
+                  <th class="py-4 px-6">{{ t('transaksiTab.typeCol') }}</th>
+                  <th class="py-4 px-6">{{ t('transaksiTab.descriptionCol') }}</th>
+                  <th class="py-4 px-6 text-right">{{ t('transaksiTab.amountCol') }}</th>
+                  <th class="py-4 px-6 text-center">{{ t('transaksiTab.actionCol') }}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -981,149 +1126,106 @@ const rejectProp = async (id: string) => {
                       {{ tx.type }}
                     </span>
                   </td>
-                  <td class="py-4 px-6 text-slate-600">{{ tx.category || 'General' }}</td>
                   <td class="py-4 px-6 text-slate-800 font-semibold">{{ tx.description || '-' }}</td>
                   <td class="py-4 px-6 text-right font-mono font-black text-sm" :class="tx.type === 'income' ? 'text-emerald-600' : 'text-slate-900'">
                     {{ tx.type === 'income' ? '+' : '-' }}{{ formatCurrency(tx.amount) }}
                   </td>
-                  <td v-if="isAdmin" class="py-4 px-4 text-center">
-                    <button 
-                      @click="openDeleteTxModal(tx)" 
-                      class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                      :title="t('transactionsTab.delete')"
-                    >
-                      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      </svg>
-                    </button>
+                  <td class="py-4 px-6 text-center">
+                    <div class="inline-flex items-center gap-1.5">
+                      <!-- Pencil Icon: Admin = Direct Edit; Member = Change Request -->
+                      <button 
+                        @click="isAdmin ? openEditTxModal(tx) : openChangeRequestModal(tx)" 
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition"
+                        :title="isAdmin ? t('transaksiTab.edit') : t('modals.changeRequest.title')"
+                      >
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M12 20h9"></path>
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                      </button>
+                      <!-- Trash Icon: Admin = Direct Delete; Member = Delete Request -->
+                      <button 
+                        @click="isAdmin ? openDeleteTxModal(tx) : openDeleteRequestModal(tx)" 
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                        :title="isAdmin ? t('transaksiTab.delete') : t('modals.deleteRequest.title')"
+                      >
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
-      </div>
 
-      <!-- ========================================================================= -->
-      <!-- TAB 4: FINANCIAL REPORTS TAB                                              -->
-      <!-- ========================================================================= -->
-      <div v-else-if="activeTab === 'reports'" class="flex flex-col gap-6">
-        <div>
-          <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">{{ t('reportsTab.title') }}</h2>
-          <p class="text-xs text-slate-500 mt-0.5">{{ t('reportsTab.subtitle') }}</p>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="card-neo p-6 flex flex-col justify-between">
-            <span class="text-xs font-bold text-slate-400 uppercase">{{ t('reportsTab.totalInflows') }}</span>
-            <h3 class="text-3xl font-black text-emerald-600 my-2 font-mono">
-              +{{ formatCurrency((txStore.transactions || []).filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0)) }}
-            </h3>
-            <span class="text-xs text-slate-400">{{ t('reportsTab.totalInflowsDesc') }}</span>
+        <!-- Admin-Only Pending Requests Widget (Appears after history table) -->
+        <div v-if="isAdmin" class="flex flex-col gap-4 mt-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-extrabold text-lg text-slate-900 tracking-tight flex items-center gap-2">
+                <span>{{ t('pendingRequests.title') }}</span>
+                <span v-if="pendingProposals.length > 0" class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-bold">
+                  {{ pendingProposals.length }}
+                </span>
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">{{ t('pendingRequests.subtitle') }}</p>
+            </div>
           </div>
 
-          <div class="card-neo p-6 flex flex-col justify-between">
-            <span class="text-xs font-bold text-slate-400 uppercase">{{ t('reportsTab.totalOutflows') }}</span>
-            <h3 class="text-3xl font-black text-rose-600 my-2 font-mono">
-              -{{ formatCurrency((txStore.transactions || []).filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)) }}
-            </h3>
-            <span class="text-xs text-slate-400">{{ t('reportsTab.totalOutflowsDesc') }}</span>
+          <div v-if="pendingProposals.length === 0" class="card-neo p-8 text-center text-xs text-slate-400">
+            {{ t('pendingRequests.noRequests') }}
           </div>
 
-          <div class="card-neo p-6 flex flex-col justify-between">
-            <span class="text-xs font-bold text-slate-400 uppercase">{{ t('reportsTab.netBalances') }}</span>
-            <h3 class="text-3xl font-black text-slate-900 my-2 font-mono">
-              {{ formatCurrency(totalBalance) }}
-            </h3>
-            <span class="text-xs text-slate-400">{{ t('reportsTab.netBalancesDesc') }}</span>
-          </div>
-        </div>
-
-        <!-- 7-Day Cashflow Performance Chart in Report -->
-        <div class="card-neo p-6">
-          <CashflowChart 
-            :transactions="txStore.transactions"
-            :total-balance="totalBalance"
-            :total-income="sevenDaysIncome"
-            :total-expense="sevenDaysExpense"
-          />
-        </div>
-      </div>
-
-      <!-- ========================================================================= -->
-      <!-- TAB 5: TRANSACTION SUBMISSION & PROPOSALS TAB                             -->
-      <!-- ========================================================================= -->
-      <div v-else-if="activeTab === 'submissions'" class="flex flex-col gap-6">
-        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-          <div>
-            <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">{{ t('submissionsTab.title') }}</h2>
-            <p class="text-xs text-slate-500 mt-0.5">{{ t('submissionsTab.subtitle') }}</p>
-          </div>
-          <div class="flex gap-2">
-            <button 
-              @click="openTxModal" 
-              class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition shadow-sm"
-            >
-              {{ t('submissionsTab.recordDirectBtn') }}
-            </button>
-            <button 
-              @click="openProposalModal" 
-              class="px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-slate-950 rounded-2xl text-xs font-bold transition shadow-sm"
-            >
-              {{ t('submissionsTab.submitProposalBtn') }}
-            </button>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-4">
-          <h3 class="font-extrabold text-base text-slate-900">{{ t('submissionsTab.proposalsTitle') }}</h3>
-          
-          <div v-if="txStore.proposals.length === 0" class="card-neo p-12 text-center text-xs text-slate-400">
-            {{ t('submissionsTab.noProposals') }}
-          </div>
-
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div 
-              v-for="p in txStore.proposals" 
+              v-for="p in pendingProposals" 
               :key="p.id"
-              class="card-neo p-6 flex flex-col justify-between"
+              class="card-neo p-5 flex flex-col justify-between border-amber-200/80 bg-amber-50/20"
             >
               <div>
                 <div class="flex items-start justify-between gap-3">
-                  <h4 class="font-black text-base text-slate-900">{{ p.title }}</h4>
-                  <span 
-                    class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
-                    :class="{
-                      'bg-amber-50 text-amber-700 border border-amber-200': p.status === 'pending',
-                      'bg-emerald-50 text-emerald-700 border border-emerald-200': p.status === 'approved',
-                      'bg-rose-50 text-rose-700 border border-rose-200': p.status === 'rejected',
-                    }"
-                  >
-                    {{ p.status === 'pending' ? t('submissionsTab.pending') : (p.status === 'approved' ? t('submissionsTab.approved') : t('submissionsTab.rejected')) }}
+                  <div>
+                    <span 
+                      class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider mb-1.5 inline-block"
+                      :class="{
+                        'bg-sky-100 text-sky-800': p.request_type === 'add_transaction' || !p.request_type,
+                        'bg-amber-100 text-amber-800': p.request_type === 'edit_transaction',
+                        'bg-rose-100 text-rose-800': p.request_type === 'delete_transaction',
+                      }"
+                    >
+                      {{ p.request_type === 'edit_transaction' ? t('pendingRequests.typeEdit') : (p.request_type === 'delete_transaction' ? t('pendingRequests.typeDelete') : t('pendingRequests.typeAdd')) }}
+                    </span>
+                    <h4 class="font-black text-sm text-slate-900">{{ p.title }}</h4>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    {{ p.status }}
                   </span>
                 </div>
-                <p class="text-xs text-slate-500 mt-2 leading-relaxed">{{ p.description }}</p>
+                <p class="text-xs text-slate-600 mt-2 leading-relaxed">{{ p.description }}</p>
               </div>
 
-              <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <div>
-                  <span class="text-[10px] text-slate-400 font-bold uppercase block">{{ t('submissionsTab.targetWallet') }}: {{ getWalletName(p.wallet_id) }}</span>
-                  <span class="text-xl font-black text-slate-900 font-mono">{{ formatCurrency(p.amount) }}</span>
+                  <span class="text-[10px] text-slate-400 font-bold uppercase block">{{ t('pendingRequests.targetWallet') }}: {{ getWalletName(p.wallet_id) }}</span>
+                  <span class="text-base font-black text-slate-900 font-mono">{{ formatCurrency(p.amount) }}</span>
                 </div>
 
-                <div v-if="isAdmin && p.status === 'pending'" class="flex gap-2">
+                <div class="flex gap-2">
                   <button 
                     @click="approveProp(p.id)" 
-                    class="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition shadow-sm"
+                    class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm"
                   >
-                    {{ t('submissionsTab.approveBtn') }}
+                    {{ t('pendingRequests.approveBtn') }}
                   </button>
                   <button 
                     @click="rejectProp(p.id)" 
-                    class="px-3.5 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs transition shadow-sm"
+                    class="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-sm"
                   >
-                    {{ t('submissionsTab.rejectBtn') }}
+                    {{ t('pendingRequests.rejectBtn') }}
                   </button>
                 </div>
               </div>
@@ -1253,7 +1355,7 @@ const rejectProp = async (id: string) => {
           <span class="flex-1">{{ t('modals.familyManage.permissionDenied') }}</span>
         </div>
 
-        <!-- Workspace Name Editing (Admin only) -->
+        <!-- Family Room Name Editing (Admin only) -->
         <div v-if="isAdmin" class="mb-6 pb-6 border-b border-slate-100">
           <label class="text-xs font-bold text-slate-700 block mb-1.5">{{ t('modals.familyManage.nameLabel') }}</label>
           <div class="flex gap-2">
@@ -1377,14 +1479,14 @@ const rejectProp = async (id: string) => {
       </form>
     </dialog>
 
-    <!-- 5. Modal Create Transaction -->
+    <!-- 5. Modal Create Transaction (Admin: Direct Record | Member: Submit Proposal) -->
     <dialog :class="isTxModalOpen ? 'modal modal-open' : 'modal'">
       <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
-        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.createTx.title') }}</h3>
-        <p class="text-xs text-slate-400 mb-4">{{ t('modals.createTx.subtitle') }}</p>
+        <h3 class="font-black text-lg text-slate-900 mb-1">{{ isAdmin ? t('modals.createTx.titleAdmin') : t('modals.createTx.titleMember') }}</h3>
+        <p class="text-xs text-slate-400 mb-4">{{ isAdmin ? t('modals.createTx.subtitleAdmin') : t('modals.createTx.subtitleMember') }}</p>
 
         <div v-if="walletStore.wallets.length === 0" class="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-xs mb-4 font-semibold">
-          {{ t('transactionsTab.noWalletsWarning') }}
+          {{ t('transaksiTab.noWalletsWarning') }}
         </div>
 
         <div class="flex flex-col gap-3.5">
@@ -1401,15 +1503,9 @@ const rejectProp = async (id: string) => {
               <option value="income">{{ t('modals.createTx.incomeOption') }}</option>
             </select>
           </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.createTx.amountLabel') }}</label>
-              <input type="number" v-model.number="newTx.amount" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-            <div>
-              <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.createTx.categoryLabel') }}</label>
-              <input type="text" v-model="newTx.category" :placeholder="t('modals.createTx.categoryPlaceholder')" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.createTx.amountLabel') }}</label>
+            <input type="number" v-model.number="newTx.amount" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
           </div>
           <div>
             <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.createTx.descLabel') }}</label>
@@ -1420,7 +1516,7 @@ const rejectProp = async (id: string) => {
         <div class="modal-action mt-6 gap-2">
           <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeTxModal" :disabled="isTxSubmitting">{{ t('modals.createTx.cancel') }}</button>
           <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitTx" :disabled="isTxSubmitting || !newTx.wallet_id || newTx.amount <= 0">
-            {{ isTxSubmitting ? t('modals.createTx.saving') : t('modals.createTx.save') }}
+            {{ isTxSubmitting ? t('modals.createTx.saving') : (isAdmin ? t('modals.createTx.saveAdmin') : t('modals.createTx.saveMember')) }}
           </button>
         </div>
       </div>
@@ -1429,7 +1525,127 @@ const rejectProp = async (id: string) => {
       </form>
     </dialog>
 
-    <!-- 6. Modal Confirm Delete Transaction -->
+    <!-- 6. Modal Edit Transaction (Admin Direct Edit) -->
+    <dialog :class="isEditTxModalOpen ? 'modal modal-open' : 'modal'">
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
+        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.editTx.title') }}</h3>
+        <p class="text-xs text-slate-400 mb-4">{{ t('modals.editTx.subtitle') }}</p>
+
+        <div class="flex flex-col gap-3.5">
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.editTx.selectWallet') }}</label>
+            <select v-model="editTxForm.wallet_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400">
+              <option v-for="w in walletStore.wallets" :key="w.id" :value="w.id">{{ w.name }} ({{ formatCurrency(w.current_balance) }})</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.editTx.txType') }}</label>
+            <select v-model="editTxForm.type" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400">
+              <option value="expense">{{ t('modals.editTx.expenseOption') }}</option>
+              <option value="income">{{ t('modals.editTx.incomeOption') }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.editTx.amountLabel') }}</label>
+            <input type="number" v-model.number="editTxForm.amount" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.editTx.descLabel') }}</label>
+            <input type="text" v-model="editTxForm.description" :placeholder="t('modals.editTx.descPlaceholder')" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+        </div>
+
+        <div class="modal-action mt-6 gap-2">
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeEditTxModal" :disabled="isEditTxSubmitting">{{ t('modals.editTx.cancel') }}</button>
+          <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitEditTx" :disabled="isEditTxSubmitting || editTxForm.amount <= 0">
+            {{ isEditTxSubmitting ? t('modals.editTx.saving') : t('modals.editTx.save') }}
+          </button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop">
+        <button type="button" @click="closeEditTxModal">close</button>
+      </form>
+    </dialog>
+
+    <!-- 7. Modal Change Request (Member) -->
+    <dialog :class="isChangeRequestModalOpen ? 'modal modal-open' : 'modal'">
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
+        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.changeRequest.title') }}</h3>
+        <p class="text-xs text-slate-400 mb-4">{{ t('modals.changeRequest.subtitle') }}</p>
+
+        <div v-if="selectedTxForChangeRequest" class="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs mb-4">
+          <div class="flex justify-between text-slate-500 font-bold mb-1">
+            <span>{{ t('modals.changeRequest.origAmount') }}:</span>
+            <span class="font-mono text-slate-900">{{ formatCurrency(selectedTxForChangeRequest.amount) }}</span>
+          </div>
+          <div class="flex justify-between text-slate-500 font-bold">
+            <span>{{ t('modals.changeRequest.origDesc') }}:</span>
+            <span class="text-slate-800">{{ selectedTxForChangeRequest.description || '-' }}</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3.5">
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.changeRequest.newTypeLabel') }}</label>
+            <select v-model="changeRequestForm.type" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400">
+              <option value="expense">{{ t('modals.editTx.expenseOption') }}</option>
+              <option value="income">{{ t('modals.editTx.incomeOption') }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.changeRequest.newAmountLabel') }}</label>
+            <input type="number" v-model.number="changeRequestForm.amount" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.changeRequest.newDescLabel') }}</label>
+            <textarea v-model="changeRequestForm.description" rows="2" :placeholder="t('modals.changeRequest.newDescPlaceholder')" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400"></textarea>
+          </div>
+        </div>
+
+        <div class="modal-action mt-6 gap-2">
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeChangeRequestModal" :disabled="isChangeRequestSubmitting">{{ t('modals.changeRequest.cancel') }}</button>
+          <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitChangeRequest" :disabled="isChangeRequestSubmitting || changeRequestForm.amount <= 0">
+            {{ isChangeRequestSubmitting ? t('modals.changeRequest.saving') : t('modals.changeRequest.save') }}
+          </button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop">
+        <button type="button" @click="closeChangeRequestModal">close</button>
+      </form>
+    </dialog>
+
+    <!-- 8. Modal Delete Request (Member) -->
+    <dialog :class="isDeleteRequestModalOpen ? 'modal modal-open' : 'modal'">
+      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-rose-100 max-w-md">
+        <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
+          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </div>
+        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.deleteRequest.title') }}</h3>
+        <p class="text-xs text-slate-500 mb-4">{{ t('modals.deleteRequest.confirmMsg').replace('{amount}', formatCurrency(selectedTxForDeleteRequest?.amount || 0)) }}</p>
+
+        <div class="flex flex-col gap-3.5">
+          <div>
+            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.deleteRequest.reasonLabel') }}</label>
+            <input type="text" v-model="deleteRequestReason" :placeholder="t('modals.deleteRequest.reasonPlaceholder')" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+        </div>
+
+        <div class="modal-action mt-6 gap-2">
+          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeDeleteRequestModal" :disabled="isDeleteRequestSubmitting">{{ t('modals.deleteRequest.cancel') }}</button>
+          <button class="btn bg-rose-600 hover:bg-rose-700 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitDeleteRequest" :disabled="isDeleteRequestSubmitting">
+            {{ isDeleteRequestSubmitting ? t('modals.deleteRequest.saving') : t('modals.deleteRequest.save') }}
+          </button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop">
+        <button type="button" @click="closeDeleteRequestModal">close</button>
+      </form>
+    </dialog>
+
+    <!-- 9. Modal Confirm Delete Transaction (Admin Direct Delete) -->
     <dialog :class="isDeleteTxModalOpen ? 'modal modal-open' : 'modal'">
       <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-rose-100 max-w-md">
         <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
@@ -1442,7 +1658,7 @@ const rejectProp = async (id: string) => {
         <p class="text-xs text-slate-500 mb-2">{{ t('modals.confirmDelete.descTx') }}</p>
         <div v-if="deleteTxTarget" class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold">
           <div class="flex justify-between items-center">
-            <span>{{ deleteTxTarget.description || deleteTxTarget.category || 'Transaction' }}</span>
+            <span>{{ deleteTxTarget.description || 'Transaction' }}</span>
             <span class="font-mono font-bold">{{ formatCurrency(deleteTxTarget.amount) }}</span>
           </div>
         </div>
@@ -1456,45 +1672,6 @@ const rejectProp = async (id: string) => {
       </div>
       <form method="dialog" class="modal-backdrop">
         <button type="button" @click="closeDeleteTxModal">close</button>
-      </form>
-    </dialog>
-
-    <!-- 7. Modal Create Proposal -->
-    <dialog :class="isProposalModalOpen ? 'modal modal-open' : 'modal'">
-      <div class="modal-box bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md">
-        <h3 class="font-black text-lg text-slate-900 mb-1">{{ t('modals.proposal.title') }}</h3>
-        <p class="text-xs text-slate-400 mb-4">{{ t('modals.proposal.subtitle') }}</p>
-
-        <div class="flex flex-col gap-3.5">
-          <div>
-            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.proposal.targetWallet') }}</label>
-            <select v-model="newProposal.wallet_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400">
-              <option v-for="w in walletStore.wallets" :key="w.id" :value="w.id">{{ w.name }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.proposal.titleLabel') }}</label>
-            <input type="text" v-model="newProposal.title" :placeholder="t('modals.proposal.titlePlaceholder')" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
-          </div>
-          <div>
-            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.proposal.amountLabel') }}</label>
-            <input type="number" v-model.number="newProposal.amount" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
-          </div>
-          <div>
-            <label class="text-xs font-bold text-slate-700 block mb-1">{{ t('modals.proposal.descLabel') }}</label>
-            <input type="text" v-model="newProposal.description" :placeholder="t('modals.proposal.descPlaceholder')" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-400" />
-          </div>
-        </div>
-
-        <div class="modal-action mt-6 gap-2">
-          <button class="btn btn-ghost btn-sm rounded-xl text-xs font-bold" @click="closeProposalModal" :disabled="isProposalSubmitting">{{ t('modals.proposal.cancel') }}</button>
-          <button class="btn bg-slate-900 hover:bg-slate-800 text-white btn-sm rounded-xl text-xs font-bold border-none" @click="handleSubmitProposal" :disabled="isProposalSubmitting || !newProposal.title || newProposal.amount <= 0">
-            {{ isProposalSubmitting ? t('modals.proposal.submitting') : t('modals.proposal.save') }}
-          </button>
-        </div>
-      </div>
-      <form method="dialog" class="modal-backdrop">
-        <button type="button" @click="closeProposalModal">close</button>
       </form>
     </dialog>
 
