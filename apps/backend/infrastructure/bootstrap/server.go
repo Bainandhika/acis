@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,12 +13,13 @@ import (
 
 	"github.com/Bainandhika/acis/apps/backend/config"
 	"github.com/Bainandhika/acis/apps/backend/domain/authentication"
+	"github.com/Bainandhika/acis/apps/backend/domain/bot"
 	"github.com/Bainandhika/acis/apps/backend/domain/family"
-	"github.com/Bainandhika/acis/apps/backend/domain/telegram"
 	"github.com/Bainandhika/acis/apps/backend/domain/transaction"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/middleware"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/notification"
+	"github.com/Bainandhika/acis/apps/backend/infrastructure/telegramclient"
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/worker"
 	"github.com/Bainandhika/acis/apps/backend/shared/cache"
 	"github.com/gin-contrib/cors"
@@ -27,18 +27,35 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type roleFinderAdapter struct {
+	repo family.FamilyRepository
+}
+
+func NewRoleFinderAdapter(repo family.FamilyRepository) authentication.RoleFinder {
+	return &roleFinderAdapter{repo: repo}
+}
+
+func (a *roleFinderAdapter) FindRoleByUserID(ctx context.Context, userID string) (string, error) {
+	member, err := a.repo.FindMemberByUserID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if member == nil {
+		return "", nil
+	}
+	return member.Role, nil
+}
+
 type Server struct {
-	cfg            *config.Config
-	db             *database.AppDB
-	redisClient    *redis.Client
-	router         *gin.Engine
-	workerPool     *worker.WorkerPool
-	poller         *worker.OutboxPoller
-	botPoller      *telegram.BotPoller
-	reminderWorker *telegram.LowBalanceWorker
-	otpCache       *cache.OTPCache
-	limiter        *cache.TokenBucketLimiter
-	authLimiter    *cache.TokenBucketLimiter
+	cfg         *config.Config
+	db          *database.AppDB
+	redisClient *redis.Client
+	router      *gin.Engine
+	workerPool  *worker.WorkerPool
+	poller      *worker.OutboxPoller
+	otpCache    *cache.OTPCache
+	limiter     *cache.TokenBucketLimiter
+	authLimiter *cache.TokenBucketLimiter
 }
 
 func NewServer(cfg *config.Config, db *database.AppDB) *Server {
@@ -61,7 +78,7 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 	corsConfig := cors.Config{
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Transaction-ID", "X-Telegram-Bot-Api-Secret-Token"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Transaction-ID", "X-Bot-Secret"},
 		ExposeHeaders:    []string{"Content-Length", "X-Transaction-ID"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -85,8 +102,6 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 		opt, err := redis.ParseURL(cfg.Redis.URL)
 		if err == nil {
 			redisClient = redis.NewClient(opt)
-		} else {
-			slog.Warn("Failed to parse REDIS_URL, falling back to host/port", slog.Any("error", err))
 		}
 	}
 	if redisClient == nil {
@@ -119,7 +134,7 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 }
 
 func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
-	// Outbox Repository & Worker Pool Setup (Hybrid Redis Pub/Sub + Postgres Outbox)
+	// Outbox Repository & Worker Pool Setup
 	outboxRepo := notification.NewOutboxRepository(s.db, s.redisClient)
 	s.workerPool = worker.NewWorkerPool(outboxRepo, 3, 100)
 	s.workerPool.Start(context.Background())
@@ -127,8 +142,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	s.poller = worker.NewOutboxPoller(outboxRepo, s.workerPool, 1*time.Minute, 20, s.redisClient)
 	s.poller.Start(context.Background())
 
-	// Telegram Client Setup
-	tgClient := telegram.NewClient(s.cfg.Telegram.BotToken)
+	tgClient := telegramclient.NewClient(s.cfg.Telegram.BotToken)
 
 	// Register Outbox Notification Handlers
 	s.workerPool.RegisterHandler("proposal_approved", func(ctx context.Context, job notification.NotificationJob) error {
@@ -146,7 +160,6 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 				payload["wallet_name"], payload["current_balance"], payload["minimum_limit"])
 			return tgClient.SendMessage(ctx, chatID, msg)
 		}
-		log.Printf("⚠️ Outbox worker processed Telegram Alert for recipient: %s\n", job.Recipient)
 		return nil
 	})
 
@@ -181,19 +194,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	txSvc := transaction.NewService(txRepo, outboxRepo, s.db)
 	txHandler := transaction.NewHandler(txSvc)
 
-	tgTxAdapter := NewTelegramTxAdapter(txSvc)
-	tgFamAdapter := NewTelegramFamilyAdapter(familySvc)
-	authSessionAdapter := NewAuthSessionAdapter(s.otpCache, authRepo)
-
-	botService := telegram.NewBotService(tgTxAdapter, tgFamAdapter, authSessionAdapter, tgClient)
-	webhookHandler := telegram.NewWebhookHandler(botService, tgClient)
-
-	// Start Telegram Bot Poller to listen for incoming messages/commands in real-time
-	s.botPoller = telegram.NewBotPoller(tgClient, botService)
-	s.botPoller.Start(context.Background())
-
-	s.reminderWorker = telegram.NewLowBalanceWorker(tgFamAdapter, outboxRepo, s.db, 1*time.Hour)
-	s.reminderWorker.Start(context.Background())
+	botHandler := bot.NewBotHandler(familySvc, txSvc)
 
 	// Public Routes
 	v1 := s.router.Group("/api/v1")
@@ -224,7 +225,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 
 			c.JSON(statusCode, gin.H{
 				"status":      "ok",
-				"version":     "1.3.0",
+				"version":     "1.4.0",
 				"environment": s.cfg.Server.Mode,
 				"database": gin.H{
 					"status":     dbStatus,
@@ -247,7 +248,15 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 			authGroup.POST("/logout", authHandler.Logout)
 		}
 
-		v1.POST("/telegram/webhook", webhookHandler.HandleWebhook)
+		// Bot Internal API routes
+		botAPI := v1.Group("/bot")
+		botAPI.Use(middleware.BotSecretMiddleware(s.cfg.Bot.Secret))
+		{
+			botAPI.POST("/link", botHandler.Link)
+			botAPI.GET("/family", botHandler.GetFamily)
+			botAPI.GET("/balance", botHandler.Balance)
+			botAPI.POST("/transaction", botHandler.RecordTransaction)
+		}
 	}
 
 	// Protected Routes — Family Setup (no family context needed)
@@ -275,6 +284,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 		familyProtected.DELETE("/family/members/:id", middleware.RequireRole("admin"), familyHandler.RemoveMember)
 
 		familyProtected.POST("/transaction", middleware.RequireRole("admin"), txHandler.CreateTransaction)
+		familyProtected.PATCH("/transaction/:id", middleware.RequireRole("admin"), txHandler.UpdateTransaction)
 		familyProtected.DELETE("/transaction/:id", middleware.RequireRole("admin"), txHandler.DeleteTransaction)
 		familyProtected.GET("/transaction", txHandler.GetTransactions)
 		familyProtected.POST("/transaction/proposals", txHandler.CreateProposal)
@@ -313,12 +323,6 @@ func (s *Server) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if s.botPoller != nil {
-		s.botPoller.Stop()
-	}
-	if s.reminderWorker != nil {
-		s.reminderWorker.Stop()
-	}
 	if s.poller != nil {
 		s.poller.Stop()
 	}
