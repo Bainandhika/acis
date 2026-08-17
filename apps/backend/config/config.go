@@ -56,6 +56,10 @@ type TelegramConfig struct {
 	BotUsername   string `yaml:"bot_username"`
 }
 
+type BotConfig struct {
+	Secret string `yaml:"secret"`
+}
+
 type CORSConfig struct {
 	AllowedOrigins []string `yaml:"allowed_origins"`
 }
@@ -68,6 +72,7 @@ type Config struct {
 	Redis    RedisConfig    `yaml:"redis"`
 	OTP      OTPConfig      `yaml:"otp"`
 	Telegram TelegramConfig `yaml:"telegram"`
+	Bot      BotConfig      `yaml:"bot"`
 	CORS     CORSConfig     `yaml:"cors"`
 }
 
@@ -131,6 +136,9 @@ func Load(configPath string) *Config {
 	}
 	if tgUsername := os.Getenv("TELEGRAM_BOT_USERNAME"); tgUsername != "" {
 		cfg.Telegram.BotUsername = tgUsername
+	}
+	if botSecret := os.Getenv("BOT_INTERNAL_SECRET"); botSecret != "" {
+		cfg.Bot.Secret = botSecret
 	}
 	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
 		origins := strings.Split(corsEnv, ",")

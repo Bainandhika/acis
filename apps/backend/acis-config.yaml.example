@@ -36,6 +36,10 @@ telegram:
   webhook_secret: "${TELEGRAM_WEBHOOK_SECRET:}"
   bot_username: "${TELEGRAM_BOT_USERNAME:}"
 
+bot:
+  secret: "${BOT_INTERNAL_SECRET:changeme}"
+
 cors:
   allowed_origins:
     - "http://localhost:5173"
+
