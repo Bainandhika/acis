@@ -26,6 +26,7 @@ type FamilyService interface {
 	UpdateWallet(ctx context.Context, walletID, familyID string, req UpdateWalletReq) (*WalletDTO, error)
 	DeleteWallet(ctx context.Context, walletID, familyID string) error
 	GetWallets(ctx context.Context, familyID string) ([]WalletDTO, error)
+	FindWalletByShortID(ctx context.Context, shortID string) (*WalletDTO, error)
 	GetWalletBalances(ctx context.Context, familyID string) ([]WalletBalanceDTO, error)
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
 	GetMembers(ctx context.Context, familyID string) ([]FamilyMemberDTO, error)
@@ -63,6 +64,7 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 		Name:          name,
 		InviteCode:    inviteCode,
 		MonthlyIncome: monthlyIncome,
+		WalletCounter: 0,
 		CreatedBy:     &userID,
 	}
 
@@ -95,6 +97,7 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 		Name:          family.Name,
 		InviteCode:    family.InviteCode,
 		MonthlyIncome: family.MonthlyIncome,
+		WalletCounter: family.WalletCounter,
 		CreatedBy:     family.CreatedBy,
 		CreatedAt:     family.CreatedAt,
 	}, nil
@@ -130,6 +133,7 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
 	}, nil
@@ -167,6 +171,7 @@ func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*Family
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		Members:        memberDTOs,
 		CreatedAt:      family.CreatedAt,
@@ -205,6 +210,7 @@ func (s *familyService) FindByInviteCode(ctx context.Context, inviteCode string)
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
 	}, nil
@@ -221,6 +227,7 @@ func (s *familyService) FindByTelegramChatID(ctx context.Context, chatID int64) 
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
 	}, nil
@@ -257,8 +264,22 @@ func (s *familyService) GetMembers(ctx context.Context, familyID string) ([]Fami
 }
 
 func (s *familyService) CreateWallet(ctx context.Context, userID, familyID string, req CreateWalletReq) (*WalletDTO, error) {
+	counter, err := s.repo.IncrementWalletCounter(ctx, familyID)
+	if err != nil {
+		slog.Error("Failed to increment wallet counter", slog.Any("error", err))
+		return nil, errors.New("failed to generate wallet sequence")
+	}
+
+	fam, err := s.repo.FindFamilyByID(ctx, familyID)
+	if err != nil || fam == nil {
+		return nil, errors.New("family not found")
+	}
+
+	shortID := fmt.Sprintf("%s-%d", fam.InviteCode, counter)
+
 	wallet := &Wallet{
 		ID:             uuid.NewString(),
+		ShortID:        shortID,
 		FamilyID:       familyID,
 		Name:           req.Name,
 		Description:    req.Description,
@@ -275,6 +296,7 @@ func (s *familyService) CreateWallet(ctx context.Context, userID, familyID strin
 
 	return &WalletDTO{
 		ID:             wallet.ID,
+		ShortID:        wallet.ShortID,
 		FamilyID:       wallet.FamilyID,
 		Name:           wallet.Name,
 		Description:    wallet.Description,
@@ -306,6 +328,7 @@ func (s *familyService) UpdateWallet(ctx context.Context, walletID, familyID str
 
 	return &WalletDTO{
 		ID:             updated.ID,
+		ShortID:        updated.ShortID,
 		FamilyID:       updated.FamilyID,
 		Name:           updated.Name,
 		Description:    updated.Description,
@@ -338,6 +361,7 @@ func (s *familyService) GetWallets(ctx context.Context, familyID string) ([]Wall
 	for _, w := range wallets {
 		dtos = append(dtos, WalletDTO{
 			ID:             w.ID,
+			ShortID:        w.ShortID,
 			FamilyID:       w.FamilyID,
 			Name:           w.Name,
 			Description:    w.Description,
@@ -350,6 +374,24 @@ func (s *familyService) GetWallets(ctx context.Context, familyID string) ([]Wall
 	return dtos, nil
 }
 
+func (s *familyService) FindWalletByShortID(ctx context.Context, shortID string) (*WalletDTO, error) {
+	w, err := s.repo.FindWalletByShortID(ctx, shortID)
+	if err != nil || w == nil {
+		return nil, errors.New("wallet not found")
+	}
+	return &WalletDTO{
+		ID:             w.ID,
+		ShortID:        w.ShortID,
+		FamilyID:       w.FamilyID,
+		Name:           w.Name,
+		Description:    w.Description,
+		InitialBalance: w.InitialBalance,
+		CurrentBalance: w.CurrentBalance,
+		MinimumLimit:   w.MinimumLimit,
+		CreatedAt:      w.CreatedAt,
+	}, nil
+}
+
 func (s *familyService) GetWalletBalances(ctx context.Context, familyID string) ([]WalletBalanceDTO, error) {
 	wallets, err := s.repo.GetWalletsByFamilyID(ctx, familyID)
 	if err != nil {
@@ -360,6 +402,7 @@ func (s *familyService) GetWalletBalances(ctx context.Context, familyID string) 
 	for _, w := range wallets {
 		dtos = append(dtos, WalletBalanceDTO{
 			WalletID:       w.ID,
+			ShortID:        w.ShortID,
 			WalletName:     w.Name,
 			CurrentBalance: w.CurrentBalance,
 			MinimumLimit:   w.MinimumLimit,

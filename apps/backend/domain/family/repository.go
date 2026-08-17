@@ -16,6 +16,7 @@ type DBExecutor interface {
 
 type FamilyRepository interface {
 	CreateFamily(ctx context.Context, exec DBExecutor, family *Family) error
+	FindFamilyByID(ctx context.Context, id string) (*Family, error)
 	FindByInviteCode(ctx context.Context, inviteCode string) (*Family, error)
 	FindFamilyByUserID(ctx context.Context, userID string) (*Family, error)
 	FindMemberByUserID(ctx context.Context, userID string) (*FamilyMember, error)
@@ -25,10 +26,12 @@ type FamilyRepository interface {
 	FindByTelegramChatID(ctx context.Context, chatID int64) (*Family, error)
 	UpdateMonthlyIncome(ctx context.Context, familyID string, income float64) error
 	UpdateFamilyName(ctx context.Context, familyID string, name string) error
+	IncrementWalletCounter(ctx context.Context, familyID string) (int, error)
 
 	CreateWallet(ctx context.Context, wallet *Wallet) error
 	GetWalletsByFamilyID(ctx context.Context, familyID string) ([]Wallet, error)
 	GetWalletByID(ctx context.Context, walletID string) (*Wallet, error)
+	FindWalletByShortID(ctx context.Context, shortID string) (*Wallet, error)
 	UpdateWallet(ctx context.Context, walletID string, name string, description *string, minimumLimit float64) error
 	DeleteWallet(ctx context.Context, walletID string, familyID string) error
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
@@ -45,12 +48,22 @@ func NewRepository(db *database.AppDB) FamilyRepository {
 }
 
 func (r *familyRepoImpl) CreateFamily(ctx context.Context, exec DBExecutor, f *Family) error {
-	query := `INSERT INTO families (id, name, invite_code, monthly_income, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING created_at, updated_at`
-	return exec.QueryRowContext(ctx, query, f.ID, f.Name, f.InviteCode, f.MonthlyIncome, f.CreatedBy).Scan(&f.CreatedAt, &f.UpdatedAt)
+	query := `INSERT INTO families (id, name, invite_code, monthly_income, wallet_counter, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at, updated_at`
+	return exec.QueryRowContext(ctx, query, f.ID, f.Name, f.InviteCode, f.MonthlyIncome, f.WalletCounter, f.CreatedBy).Scan(&f.CreatedAt, &f.UpdatedAt)
+}
+
+func (r *familyRepoImpl) FindFamilyByID(ctx context.Context, id string) (*Family, error) {
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, wallet_counter, created_by, created_at, updated_at FROM families WHERE id = $1`
+	var f Family
+	err := r.db.GetContext(ctx, &f, query, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &f, err
 }
 
 func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string) (*Family, error) {
-	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, created_by, created_at, updated_at FROM families WHERE invite_code = $1`
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, wallet_counter, created_by, created_at, updated_at FROM families WHERE invite_code = $1`
 	var f Family
 	err := r.db.GetContext(ctx, &f, query, inviteCode)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -60,7 +73,7 @@ func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string
 }
 
 func (r *familyRepoImpl) FindFamilyByUserID(ctx context.Context, userID string) (*Family, error) {
-	query := `SELECT f.id, f.name, f.invite_code, f.telegram_chat_id, f.monthly_income, f.created_by, f.created_at, f.updated_at 
+	query := `SELECT f.id, f.name, f.invite_code, f.telegram_chat_id, f.monthly_income, f.wallet_counter, f.created_by, f.created_at, f.updated_at 
 			  FROM families f
 			  JOIN family_members fm ON f.id = fm.family_id
 			  WHERE fm.user_id = $1 LIMIT 1`
@@ -70,6 +83,13 @@ func (r *familyRepoImpl) FindFamilyByUserID(ctx context.Context, userID string) 
 		return nil, nil
 	}
 	return &f, err
+}
+
+func (r *familyRepoImpl) IncrementWalletCounter(ctx context.Context, familyID string) (int, error) {
+	var counter int
+	query := `UPDATE families SET wallet_counter = wallet_counter + 1 WHERE id = $1 RETURNING wallet_counter`
+	err := r.db.QueryRowContext(ctx, query, familyID).Scan(&counter)
+	return counter, err
 }
 
 func (r *familyRepoImpl) FindMemberByUserID(ctx context.Context, userID string) (*FamilyMember, error) {
@@ -106,7 +126,7 @@ func (r *familyRepoImpl) UpdateTelegramChatID(ctx context.Context, familyID stri
 }
 
 func (r *familyRepoImpl) FindByTelegramChatID(ctx context.Context, chatID int64) (*Family, error) {
-	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, created_by, created_at, updated_at FROM families WHERE telegram_chat_id = $1`
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, wallet_counter, created_by, created_at, updated_at FROM families WHERE telegram_chat_id = $1`
 	var f Family
 	err := r.db.GetContext(ctx, &f, query, chatID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -128,14 +148,14 @@ func (r *familyRepoImpl) UpdateFamilyName(ctx context.Context, familyID string, 
 }
 
 func (r *familyRepoImpl) CreateWallet(ctx context.Context, w *Wallet) error {
-	query := `INSERT INTO wallets (id, family_id, name, description, initial_balance, current_balance, minimum_limit, created_by) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING created_at, updated_at`
-	return r.db.QueryRowContext(ctx, query, w.ID, w.FamilyID, w.Name, w.Description, w.InitialBalance, w.CurrentBalance, w.MinimumLimit, w.CreatedBy).
+	query := `INSERT INTO wallets (id, family_id, short_id, name, description, initial_balance, current_balance, minimum_limit, created_by) 
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING created_at, updated_at`
+	return r.db.QueryRowContext(ctx, query, w.ID, w.FamilyID, w.ShortID, w.Name, w.Description, w.InitialBalance, w.CurrentBalance, w.MinimumLimit, w.CreatedBy).
 		Scan(&w.CreatedAt, &w.UpdatedAt)
 }
 
 func (r *familyRepoImpl) GetWalletsByFamilyID(ctx context.Context, familyID string) ([]Wallet, error) {
-	query := `SELECT id, family_id, name, description, initial_balance, current_balance, minimum_limit, created_at, updated_at 
+	query := `SELECT id, family_id, short_id, name, description, initial_balance, current_balance, minimum_limit, created_at, updated_at 
 			  FROM wallets WHERE family_id = $1 ORDER BY name ASC`
 	var wallets []Wallet
 	err := r.db.SelectContext(ctx, &wallets, query, familyID)
@@ -143,10 +163,21 @@ func (r *familyRepoImpl) GetWalletsByFamilyID(ctx context.Context, familyID stri
 }
 
 func (r *familyRepoImpl) GetWalletByID(ctx context.Context, walletID string) (*Wallet, error) {
-	query := `SELECT id, family_id, name, description, initial_balance, current_balance, minimum_limit, created_at, updated_at 
+	query := `SELECT id, family_id, short_id, name, description, initial_balance, current_balance, minimum_limit, created_at, updated_at 
 			  FROM wallets WHERE id = $1`
 	var w Wallet
 	err := r.db.GetContext(ctx, &w, query, walletID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &w, err
+}
+
+func (r *familyRepoImpl) FindWalletByShortID(ctx context.Context, shortID string) (*Wallet, error) {
+	query := `SELECT id, family_id, short_id, name, description, initial_balance, current_balance, minimum_limit, created_at, updated_at 
+			  FROM wallets WHERE short_id = $1`
+	var w Wallet
+	err := r.db.GetContext(ctx, &w, query, shortID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -166,7 +197,7 @@ func (r *familyRepoImpl) DeleteWallet(ctx context.Context, walletID string, fami
 }
 
 func (r *familyRepoImpl) GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error) {
-	query := `SELECT w.id AS wallet_id, w.name AS wallet_name, w.family_id, w.current_balance, w.minimum_limit, f.telegram_chat_id 
+	query := `SELECT w.id AS wallet_id, w.short_id, w.name AS wallet_name, w.family_id, w.current_balance, w.minimum_limit, f.telegram_chat_id 
 			  FROM wallets w
 			  JOIN families f ON w.family_id = f.id
 			  WHERE w.current_balance <= w.minimum_limit`

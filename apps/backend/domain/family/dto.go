@@ -39,6 +39,7 @@ type FamilyDTO struct {
 	InviteCode     string            `json:"invite_code"`
 	TelegramChatID *int64            `json:"telegram_chat_id,omitempty"`
 	MonthlyIncome  float64           `json:"monthly_income"`
+	WalletCounter  int               `json:"wallet_counter"`
 	CreatedBy      *string           `json:"created_by,omitempty"`
 	Members        []FamilyMemberDTO `json:"members,omitempty"`
 	CreatedAt      time.Time         `json:"created_at"`
@@ -53,6 +54,7 @@ type CreateWalletReq struct {
 
 type WalletDTO struct {
 	ID             string    `json:"id"`
+	ShortID        string    `json:"short_id"`
 	FamilyID       string    `json:"family_id"`
 	Name           string    `json:"name"`
 	Description    *string   `json:"description,omitempty"`
@@ -64,6 +66,7 @@ type WalletDTO struct {
 
 type WalletBalanceDTO struct {
 	WalletID       string  `json:"wallet_id"`
+	ShortID        string  `json:"short_id"`
 	WalletName     string  `json:"wallet_name"`
 	CurrentBalance float64 `json:"current_balance"`
 	MinimumLimit   float64 `json:"minimum_limit"`
@@ -71,6 +74,7 @@ type WalletBalanceDTO struct {
 
 type LowBalanceWalletDTO struct {
 	WalletID       string  `db:"wallet_id" json:"wallet_id"`
+	ShortID        string  `db:"short_id" json:"short_id"`
 	WalletName     string  `db:"wallet_name" json:"wallet_name"`
 	FamilyID       string  `db:"family_id" json:"family_id"`
 	CurrentBalance float64 `db:"current_balance" json:"current_balance"`
