@@ -32,6 +32,11 @@ func (m *MockTransactionRepository) GetTransactionByID(ctx context.Context, txID
 	return args.Get(0).(*transaction.Transaction), args.Error(1)
 }
 
+func (m *MockTransactionRepository) UpdateTransactionRecord(ctx context.Context, exec transaction.DBExecutor, txID string, txType string, amount float64, description *string) error {
+	args := m.Called(ctx, exec, txID, txType, amount, description)
+	return args.Error(0)
+}
+
 func (m *MockTransactionRepository) DeleteTransaction(ctx context.Context, exec transaction.DBExecutor, txID string) error {
 	args := m.Called(ctx, exec, txID)
 	return args.Error(0)
