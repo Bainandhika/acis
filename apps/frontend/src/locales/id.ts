@@ -142,11 +142,11 @@ export const id = {
   walletsTab: {
     title: 'Kelola Amplop Dompet',
     subtitle: 'Alokasikan dan pantau amplop keuangan',
-    addBtn: '+ Tambah Dompet Baru',
+    addBtn: 'Tambah Dompet Baru',
     walletIdCol: 'ID Dompet',
     noDescription: 'Tidak ada deskripsi',
     noWallets: 'Belum ada amplop dompet dibuat.',
-    createFirst: '+ Buat Amplop Dompet Pertama',
+    createFirst: 'Buat Amplop Dompet Pertama',
     edit: 'Ubah',
     delete: 'Hapus',
   },

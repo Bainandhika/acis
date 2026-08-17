@@ -142,11 +142,11 @@ export const en = {
   walletsTab: {
     title: 'Manage Wallet Envelopes',
     subtitle: 'Allocate and track financial envelopes',
-    addBtn: '+ Add New Wallet',
+    addBtn: 'Add New Wallet',
     walletIdCol: 'Wallet ID',
     noDescription: 'No description',
     noWallets: 'No wallet envelopes created yet.',
-    createFirst: '+ Create First Wallet Envelope',
+    createFirst: 'Create First Wallet Envelope',
     edit: 'Edit',
     delete: 'Delete',
   },
