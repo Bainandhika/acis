@@ -17,6 +17,7 @@ type TransactionRepository interface {
 	CreateTransaction(ctx context.Context, exec DBExecutor, tx *Transaction) error
 	GetTransactionsByFamilyID(ctx context.Context, familyID string) ([]Transaction, error)
 	GetTransactionByID(ctx context.Context, txID string) (*Transaction, error)
+	UpdateTransactionRecord(ctx context.Context, exec DBExecutor, txID string, txType string, amount float64, description *string) error
 	DeleteTransaction(ctx context.Context, exec DBExecutor, txID string) error
 	CreateProposal(ctx context.Context, prop *Proposal) error
 	GetProposalsByFamilyID(ctx context.Context, familyID string) ([]Proposal, error)
@@ -35,13 +36,13 @@ func NewRepository(db *database.AppDB) TransactionRepository {
 }
 
 func (r *txRepoImpl) CreateTransaction(ctx context.Context, exec DBExecutor, tx *Transaction) error {
-	query := `INSERT INTO transactions (id, wallet_id, created_by, type, amount, category, description) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created_at`
-	return exec.QueryRowContext(ctx, query, tx.ID, tx.WalletID, tx.CreatedBy, tx.Type, tx.Amount, tx.Category, tx.Description).Scan(&tx.CreatedAt)
+	query := `INSERT INTO transactions (id, wallet_id, created_by, type, amount, description) 
+			  VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at`
+	return exec.QueryRowContext(ctx, query, tx.ID, tx.WalletID, tx.CreatedBy, tx.Type, tx.Amount, tx.Description).Scan(&tx.CreatedAt)
 }
 
 func (r *txRepoImpl) GetTransactionsByFamilyID(ctx context.Context, familyID string) ([]Transaction, error) {
-	query := `SELECT t.id, t.wallet_id, t.created_by, t.type, t.amount, t.category, t.description, t.created_at
+	query := `SELECT t.id, t.wallet_id, t.created_by, t.type, t.amount, t.description, t.created_at
 			  FROM transactions t
 			  JOIN wallets w ON t.wallet_id = w.id
 			  WHERE w.family_id = $1 ORDER BY t.created_at DESC`
@@ -51,7 +52,7 @@ func (r *txRepoImpl) GetTransactionsByFamilyID(ctx context.Context, familyID str
 }
 
 func (r *txRepoImpl) GetTransactionByID(ctx context.Context, txID string) (*Transaction, error) {
-	query := `SELECT id, wallet_id, created_by, type, amount, category, description, created_at 
+	query := `SELECT id, wallet_id, created_by, type, amount, description, created_at 
 			  FROM transactions WHERE id = $1`
 	var tx Transaction
 	err := r.db.GetContext(ctx, &tx, query, txID)
@@ -61,6 +62,12 @@ func (r *txRepoImpl) GetTransactionByID(ctx context.Context, txID string) (*Tran
 	return &tx, err
 }
 
+func (r *txRepoImpl) UpdateTransactionRecord(ctx context.Context, exec DBExecutor, txID string, txType string, amount float64, description *string) error {
+	query := `UPDATE transactions SET type = $1, amount = $2, description = $3 WHERE id = $4`
+	_, err := exec.ExecContext(ctx, query, txType, amount, description, txID)
+	return err
+}
+
 func (r *txRepoImpl) DeleteTransaction(ctx context.Context, exec DBExecutor, txID string) error {
 	query := `DELETE FROM transactions WHERE id = $1`
 	_, err := exec.ExecContext(ctx, query, txID)
@@ -68,13 +75,13 @@ func (r *txRepoImpl) DeleteTransaction(ctx context.Context, exec DBExecutor, txI
 }
 
 func (r *txRepoImpl) CreateProposal(ctx context.Context, p *Proposal) error {
-	query := `INSERT INTO proposals (id, wallet_id, proposed_by, title, amount, description, status) 
-			  VALUES ($1, $2, $3, $4, $5, $6, 'pending') RETURNING created_at, updated_at`
-	return r.db.QueryRowContext(ctx, query, p.ID, p.WalletID, p.ProposedBy, p.Title, p.Amount, p.Description).Scan(&p.CreatedAt, &p.UpdatedAt)
+	query := `INSERT INTO proposals (id, wallet_id, proposed_by, title, amount, description, status, request_type, target_transaction_id, payload) 
+			  VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9) RETURNING created_at, updated_at`
+	return r.db.QueryRowContext(ctx, query, p.ID, p.WalletID, p.ProposedBy, p.Title, p.Amount, p.Description, p.RequestType, p.TargetTransactionID, p.Payload).Scan(&p.CreatedAt, &p.UpdatedAt)
 }
 
 func (r *txRepoImpl) GetProposalsByFamilyID(ctx context.Context, familyID string) ([]Proposal, error) {
-	query := `SELECT p.id, p.wallet_id, p.proposed_by, p.title, p.amount, p.description, p.status, p.reviewed_by, p.reviewed_at, p.created_at, p.updated_at
+	query := `SELECT p.id, p.wallet_id, p.proposed_by, p.title, p.amount, p.description, p.status, p.request_type, p.target_transaction_id, p.payload, p.reviewed_by, p.reviewed_at, p.created_at, p.updated_at
 			  FROM proposals p
 			  JOIN wallets w ON p.wallet_id = w.id
 			  WHERE w.family_id = $1 ORDER BY p.created_at DESC`
@@ -84,12 +91,12 @@ func (r *txRepoImpl) GetProposalsByFamilyID(ctx context.Context, familyID string
 }
 
 func (r *txRepoImpl) GetProposalForUpdate(ctx context.Context, exec DBExecutor, proposalID string) (*Proposal, error) {
-	query := `SELECT id, wallet_id, proposed_by, title, amount, description, status, reviewed_by, reviewed_at, created_at, updated_at 
+	query := `SELECT id, wallet_id, proposed_by, title, amount, description, status, request_type, target_transaction_id, payload, reviewed_by, reviewed_at, created_at, updated_at 
 			  FROM proposals WHERE id = $1 FOR UPDATE`
 	var p Proposal
 	err := exec.QueryRowContext(ctx, query, proposalID).Scan(
 		&p.ID, &p.WalletID, &p.ProposedBy, &p.Title, &p.Amount, &p.Description,
-		&p.Status, &p.ReviewedBy, &p.ReviewedAt, &p.CreatedAt, &p.UpdatedAt,
+		&p.Status, &p.RequestType, &p.TargetTransactionID, &p.Payload, &p.ReviewedBy, &p.ReviewedAt, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

@@ -37,6 +37,33 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	})
 }
 
+func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	uidStr, _ := userID.(string)
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
+	txID := c.Param("id")
+
+	var req UpdateTransactionDTO
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req.UserID = uidStr
+	req.FamilyID = fIDStr
+	res, err := h.svc.UpdateTransaction(c.Request.Context(), txID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Transaction updated successfully",
+		"data":    res,
+	})
+}
+
 func (h *TransactionHandler) GetTransactions(c *gin.Context) {
 	familyID, _ := c.Get("family_id")
 	fIDStr, _ := familyID.(string)
