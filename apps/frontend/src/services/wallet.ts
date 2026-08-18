@@ -27,12 +27,10 @@ export const getWallets = () =>
   apiClient.get<{ data: Wallet[] }>('/family/wallets');
 
 export const createWallet = (payload: CreateWalletPayload) =>
-  apiClient.post<{ message: string; data: Wallet }>('/family/wallets', payload);
+  apiClient.post<{ data: Wallet }>('/family/wallets', payload);
 
 export const updateWallet = (id: string, payload: UpdateWalletPayload) =>
-  apiClient.patch<{ message: string; data: Wallet }>(`/family/wallets/${id}`, payload);
+  apiClient.patch<{ data: Wallet }>(`/family/wallets/${id}`, payload);
 
 export const deleteWallet = (id: string) =>
   apiClient.delete(`/family/wallets/${id}`);
-
-
