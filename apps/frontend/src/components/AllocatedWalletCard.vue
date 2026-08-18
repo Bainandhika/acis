@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { Wallet } from '../services/wallet'
+import { formatRp } from '../composables/useCurrency'
+import { useI18n } from '../locales'
 
 const props = defineProps<{
   wallet: Wallet
@@ -15,16 +17,8 @@ const emit = defineEmits<{
   (e: 'allocate', wallet: Wallet): void
 }>()
 
+const { t } = useI18n()
 const isMenuOpen = ref(false)
-
-const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(val || 0)
-}
 
 // Percentage Calculation
 const percentageUsed = computed(() => {
@@ -162,21 +156,21 @@ const progressBarColor = computed(() => {
             @click="emit('allocate', wallet); isMenuOpen = false"
             class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 font-medium cursor-pointer"
           >
-            Alokasi Dana
+            {{ t('extra.contextAllocate') }}
           </button>
           <button
             v-if="isAdmin"
             @click="emit('edit', wallet); isMenuOpen = false"
             class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 font-medium cursor-pointer"
           >
-            Ubah Dompet
+            {{ t('extra.contextEdit') }}
           </button>
           <button
             v-if="isAdmin"
             @click="emit('delete', wallet); isMenuOpen = false"
             class="w-full text-left px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
           >
-            Hapus Dompet
+            {{ t('extra.contextDelete') }}
           </button>
         </div>
       </div>
@@ -185,15 +179,15 @@ const progressBarColor = computed(() => {
     <!-- Spent vs Limit Numbers -->
     <div class="flex items-baseline justify-between mt-5 mb-2">
       <div>
-        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">SPENT</span>
+        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{{ t('extra.spent') }}</span>
         <span class="text-xl font-extrabold text-slate-900 font-sans">
-          {{ formatCurrency(spent) }}
+          {{ formatRp(spent) }}
         </span>
       </div>
       <div class="text-right">
-        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">LIMIT</span>
+        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{{ t('extra.limit') }}</span>
         <span class="text-xs font-bold text-slate-700 font-sans">
-          {{ formatCurrency(limit) }}
+          {{ formatRp(limit) }}
         </span>
       </div>
     </div>
@@ -210,7 +204,7 @@ const progressBarColor = computed(() => {
     <!-- Subtext Details -->
     <div class="flex items-center justify-between text-xs mt-2 font-medium">
       <span class="text-slate-400 font-semibold">
-        {{ percentageUsed }}% Used
+        {{ percentageUsed }}% {{ t('extra.used') }}
       </span>
       
       <!-- Right Status (Left or Over) -->
@@ -218,19 +212,19 @@ const progressBarColor = computed(() => {
         v-if="isOverBudget"
         class="text-rose-600 font-bold"
       >
-        {{ formatCurrency(Math.abs(remainingAmount)) }} over
+        {{ formatRp(Math.abs(remainingAmount)) }} {{ t('extra.over') }}
       </span>
       <span
         v-else-if="remainingAmount === 0"
         class="text-slate-500 font-bold"
       >
-        $0 left
+        {{ t('extra.zeroLeft') }}
       </span>
       <span
         v-else
         class="text-emerald-600 font-bold"
       >
-        {{ formatCurrency(remainingAmount) }} left
+        {{ formatRp(remainingAmount) }} {{ t('extra.left') }}
       </span>
     </div>
   </div>
