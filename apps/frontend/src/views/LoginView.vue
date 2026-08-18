@@ -93,19 +93,19 @@ const handleVerifyOTP = async () => {
 </script>
 
 <template>
-  <div class="flex items-center justify-center min-h-screen bg-[#F8FAFC] p-4 relative overflow-hidden">
+  <div class="flex items-center justify-center min-h-screen bg-slate-950 text-slate-100 p-4 relative overflow-hidden">
     <!-- Ambient glow decorative backgrounds -->
-    <div class="absolute top-1/4 left-1/3 w-96 h-96 bg-brand-200/40 rounded-full blur-3xl pointer-events-none"></div>
-    <div class="absolute bottom-1/4 right-1/3 w-80 h-80 bg-lime-200/30 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute top-1/4 left-1/3 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute bottom-1/4 right-1/3 w-80 h-80 bg-emerald-900/15 rounded-full blur-3xl pointer-events-none"></div>
 
-    <div class="card-neo w-full max-w-md p-8 relative z-10 border border-slate-200/80 shadow-2xl bg-white/95 backdrop-blur-xl">
+    <div class="card-neo w-full max-w-md p-8 relative z-10 border border-slate-800 shadow-2xl bg-slate-900/95 backdrop-blur-xl">
       <!-- Top Bar with Language Selector -->
       <div class="flex justify-end mb-4">
-        <div class="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/70 text-[11px] font-bold">
+        <div class="inline-flex p-1 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-bold">
           <button 
             @click="setLocale('en')"
             class="px-2.5 py-1 rounded-lg transition-all"
-            :class="locale === 'en' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+            :class="locale === 'en' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
             type="button"
           >
             EN
@@ -113,7 +113,7 @@ const handleVerifyOTP = async () => {
           <button 
             @click="setLocale('id')"
             class="px-2.5 py-1 rounded-lg transition-all"
-            :class="locale === 'id' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+            :class="locale === 'id' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
             type="button"
           >
             ID
@@ -126,9 +126,9 @@ const handleVerifyOTP = async () => {
         <img 
           src="/logo.png" 
           alt="ACIS Logo" 
-          class="w-16 h-16 rounded-2xl shadow-lg shadow-brand-500/20 object-cover mb-4"
+          class="w-16 h-16 rounded-2xl shadow-lg shadow-emerald-950/40 object-cover mb-4 border border-slate-800"
         />
-        <h2 class="text-2xl font-black text-slate-900 tracking-tight">
+        <h2 class="text-2xl font-black text-white tracking-tight">
           {{ t('login.title') }}
         </h2>
         <p class="text-xs text-slate-400 font-medium mt-1">
@@ -137,18 +137,18 @@ const handleVerifyOTP = async () => {
       </div>
 
       <!-- Sign In / Sign Up Segmented Tabs (Step 1 only) -->
-      <div v-if="step === 1" class="flex p-1 bg-slate-100/90 rounded-2xl mb-6 text-xs font-black border border-slate-200/60">
+      <div v-if="step === 1" class="flex p-1 bg-slate-950 rounded-2xl mb-6 text-xs font-bold border border-slate-800">
         <button 
-          class="flex-1 py-2.5 rounded-xl transition-all"
-          :class="authMode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+          class="flex-1 py-2.5 rounded-xl transition-all cursor-pointer"
+          :class="authMode === 'login' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           @click="handleSwitchMode('login')"
           type="button"
         >
           {{ t('login.tabSignIn') }}
         </button>
         <button 
-          class="flex-1 py-2.5 rounded-xl transition-all"
-          :class="authMode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+          class="flex-1 py-2.5 rounded-xl transition-all cursor-pointer"
+          :class="authMode === 'register' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           @click="handleSwitchMode('register')"
           type="button"
         >
@@ -157,8 +157,8 @@ const handleVerifyOTP = async () => {
       </div>
       
       <!-- Error Alert -->
-      <div v-if="error" class="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl mb-6 font-semibold flex items-center gap-2">
-        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <div v-if="error" class="p-3.5 bg-rose-950/40 border border-rose-800/40 text-rose-300 text-xs rounded-2xl mb-6 font-semibold flex items-center gap-2">
+        <svg class="w-4 h-4 shrink-0 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"></circle>
           <line x1="12" y1="8" x2="12" y2="12"></line>
           <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -170,7 +170,7 @@ const handleVerifyOTP = async () => {
       <div v-if="step === 1" class="flex flex-col gap-4">
         <!-- Username input shown only in Sign-Up mode -->
         <div v-if="authMode === 'register'">
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">{{ t('login.usernameLabel') }}</label>
+          <label class="text-xs font-bold text-slate-300 block mb-1.5">{{ t('login.usernameLabel') }}</label>
           <div class="relative">
             <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -182,7 +182,7 @@ const handleVerifyOTP = async () => {
               type="text" 
               v-model="username" 
               :placeholder="t('login.usernamePlaceholder')" 
-              class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
+              class="w-full pl-10 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-xs font-semibold text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-600 transition" 
               @keyup.enter="phoneNumber && handleRequestOTP()"
             />
           </div>
@@ -191,7 +191,7 @@ const handleVerifyOTP = async () => {
 
         <!-- Phone Number input (Required for both Sign-In and Sign-Up) -->
         <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">{{ t('login.phoneLabel') }}</label>
+          <label class="text-xs font-bold text-slate-300 block mb-1.5">{{ t('login.phoneLabel') }}</label>
           <div class="relative">
             <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -202,7 +202,7 @@ const handleVerifyOTP = async () => {
               type="tel" 
               v-model="phoneNumber" 
               :placeholder="t('login.phonePlaceholder')" 
-              class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition" 
+              class="w-full pl-10 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-xs font-semibold text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-600 transition" 
               @keyup.enter="phoneNumber && handleRequestOTP()"
             />
           </div>
@@ -210,11 +210,11 @@ const handleVerifyOTP = async () => {
         </div>
 
         <button 
-          class="w-full py-3.5 mt-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+          class="w-full py-3.5 mt-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition border border-slate-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 cursor-pointer"
           :disabled="loading || !phoneNumber.trim() || (authMode === 'register' && !username.trim())"
           @click="handleRequestOTP"
         >
-          <svg class="w-4 h-4 text-brand-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
@@ -224,40 +224,40 @@ const handleVerifyOTP = async () => {
 
       <!-- STEP 2: Input 6-Digit OTP -->
       <div v-else class="flex flex-col gap-4">
-        <div class="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
-          <p class="text-xs text-emerald-800 font-bold">
+        <div class="p-3.5 bg-emerald-950/40 border border-emerald-800/40 rounded-2xl text-center">
+          <p class="text-xs text-emerald-300 font-bold">
             {{ t('login.otpSentTitle') }}
           </p>
-          <p class="text-[11px] text-emerald-700 mt-0.5">
-            {{ t('login.otpSentSubtitle') }} <span class="font-bold font-mono">{{ phoneNumber }}</span>
+          <p class="text-[11px] text-emerald-400/80 mt-0.5">
+            {{ t('login.otpSentSubtitle') }} <span class="font-bold font-mono text-emerald-300">{{ phoneNumber }}</span>
           </p>
-          <div v-if="isTestUser" class="mt-2 text-[11px] text-brand-700 bg-brand-100/80 px-2.5 py-1 rounded-xl font-mono font-bold inline-block">
+          <div v-if="isTestUser" class="mt-2 text-[11px] text-emerald-300 bg-emerald-950/60 border border-emerald-800/40 px-2.5 py-1 rounded-xl font-mono font-bold inline-block">
             {{ t('login.testBypassHint') }}
           </div>
         </div>
 
         <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5 text-center">{{ t('login.enterOtpLabel') }}</label>
+          <label class="text-xs font-bold text-slate-300 block mb-1.5 text-center">{{ t('login.enterOtpLabel') }}</label>
           <input 
             type="text" 
             v-model="otp" 
             placeholder="••••••" 
             maxlength="6"
-            class="w-full py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-center text-2xl font-black tracking-[0.4em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition font-mono" 
+            class="w-full py-3.5 bg-slate-800/80 border border-slate-700 rounded-2xl text-center text-2xl font-black tracking-[0.4em] text-white focus:outline-none focus:ring-2 focus:ring-slate-600 transition font-mono" 
             @keyup.enter="otp.length === 6 && handleVerifyOTP()"
           />
         </div>
 
         <div class="flex gap-2.5 mt-2">
           <button 
-            class="px-4 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+            class="px-4 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition border border-slate-700 cursor-pointer"
             @click="step = 1"
             :disabled="loading"
           >
             {{ t('login.back') }}
           </button>
           <button 
-            class="flex-1 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition shadow-md active:scale-95 disabled:opacity-50"
+            class="flex-1 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition border border-slate-700 active:scale-95 disabled:opacity-50 cursor-pointer"
             :disabled="loading || otp.length !== 6"
             @click="handleVerifyOTP"
           >

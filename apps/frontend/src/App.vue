@@ -9,11 +9,11 @@ const authStore = useAuthStore()
   <Transition name="splash-fade">
     <div 
       v-if="!authStore.isInitialized" 
-      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#F8FAFC] overflow-hidden"
+      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 overflow-hidden"
     >
       <!-- Background Ambient Glow -->
-      <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-300/30 rounded-full blur-3xl animate-pulse pointer-events-none"></div>
-      <div class="absolute bottom-1/4 right-1/3 w-80 h-80 bg-lime-300/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-brand-500/15 rounded-full blur-3xl animate-pulse pointer-events-none"></div>
+      <div class="absolute bottom-1/4 right-1/3 w-80 h-80 bg-emerald-900/20 rounded-full blur-3xl pointer-events-none"></div>
 
       <!-- Center Logo & Branding -->
       <div class="relative z-10 flex flex-col items-center text-center px-6">
@@ -22,12 +22,12 @@ const authStore = useAuthStore()
           <img 
             src="/logo.png" 
             alt="ACIS Logo" 
-            class="w-20 h-20 rounded-3xl shadow-2xl shadow-brand-500/40 object-cover animate-bounce-slow"
+            class="w-20 h-20 rounded-3xl shadow-2xl shadow-emerald-950/50 object-cover animate-bounce-slow border border-slate-800"
           />
-          <div class="absolute -inset-1 rounded-3xl bg-brand-400/20 blur-sm -z-10 animate-ping"></div>
+          <div class="absolute -inset-1 rounded-3xl bg-brand-500/20 blur-sm -z-10 animate-ping"></div>
         </div>
 
-        <h1 class="text-3xl font-black text-slate-900 tracking-tight mb-1">
+        <h1 class="text-3xl font-black text-white tracking-tight mb-1">
           ACIS
         </h1>
         <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">
@@ -35,8 +35,8 @@ const authStore = useAuthStore()
         </p>
 
         <!-- Progress Indicator -->
-        <div class="w-48 h-1.5 bg-slate-200/80 rounded-full overflow-hidden relative">
-          <div class="h-full bg-gradient-to-r from-brand-400 to-lime-400 rounded-full animate-indeterminate"></div>
+        <div class="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden relative border border-slate-700/50">
+          <div class="h-full bg-gradient-to-r from-brand-600 to-emerald-500 rounded-full animate-indeterminate"></div>
         </div>
       </div>
     </div>
