@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { formatRp } from '../composables/useCurrency'
+import { useI18n } from '../locales'
 
 export interface MemberSpendItem {
   id: string
@@ -17,27 +18,7 @@ const emit = defineEmits<{
   (e: 'manage-family'): void
 }>()
 
-const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(val || 0)
-}
-
-// Fallback visual members matching reference if family has single/new member
-const displayMembers = computed(() => {
-  if (props.members && props.members.length > 0) {
-    return props.members
-  }
-  return [
-    { id: '1', name: 'David Miller', role: 'Dad / Co-Owner', spent: 3120 },
-    { id: '2', name: 'Sarah Miller', role: 'Mom / Co-Owner', spent: 2840 },
-    { id: '3', name: 'Emma Miller', role: 'Daughter (16)', spent: 240 },
-    { id: '4', name: 'Leo Miller', role: 'Son (12)', spent: 115 },
-  ]
-})
+const { t } = useI18n()
 </script>
 
 <template>
@@ -45,20 +26,24 @@ const displayMembers = computed(() => {
     <!-- Header with Manage Link -->
     <div class="flex items-center justify-between pb-3">
       <h3 class="text-base font-bold text-slate-900">
-        Family Spending
+        {{ t('dashboard.family.title') }}
       </h3>
       <button
         @click="emit('manage-family')"
         class="text-xs font-semibold text-teal-700 hover:text-teal-800 transition hover:underline cursor-pointer"
       >
-        Manage
+        {{ t('dashboard.family.edit') }}
       </button>
     </div>
 
     <!-- Member List Breakdown -->
     <div class="flex flex-col gap-3 mt-2">
+      <div v-if="members.length === 0" class="text-xs text-slate-400 text-center py-6">
+        {{ t('dashboard.familyMembers.noMembers') }}
+      </div>
+
       <div
-        v-for="member in displayMembers"
+        v-for="member in members"
         :key="member.id"
         class="flex items-center justify-between py-1"
       >
@@ -81,10 +66,10 @@ const displayMembers = computed(() => {
         <!-- Monthly Spend -->
         <div class="flex flex-col items-end text-right">
           <span class="text-xs font-bold text-slate-900 font-sans">
-            {{ formatCurrency(member.spent) }}
+            {{ formatRp(member.spent) }}
           </span>
           <span class="text-[10px] text-slate-400 font-medium">
-            this month
+            {{ t('extra.thisMonth') }}
           </span>
         </div>
       </div>
