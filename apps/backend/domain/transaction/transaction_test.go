@@ -24,6 +24,24 @@ func (m *MockTransactionRepository) GetTransactionsByFamilyID(ctx context.Contex
 	return args.Get(0).([]transaction.Transaction), args.Error(1)
 }
 
+func (m *MockTransactionRepository) GetTransactionsByFamilyIDAndPeriod(ctx context.Context, familyID string, year int, month int) ([]transaction.Transaction, error) {
+	args := m.Called(ctx, familyID, year, month)
+	return args.Get(0).([]transaction.Transaction), args.Error(1)
+}
+
+func (m *MockTransactionRepository) GetFamilyForUpdate(ctx context.Context, exec transaction.DBExecutor, familyID string) (*transaction.FamilyBalanceRecord, error) {
+	args := m.Called(ctx, exec, familyID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*transaction.FamilyBalanceRecord), args.Error(1)
+}
+
+func (m *MockTransactionRepository) UpdateFamilyPrimaryBalance(ctx context.Context, exec transaction.DBExecutor, familyID string, newBalance float64) error {
+	args := m.Called(ctx, exec, familyID, newBalance)
+	return args.Error(0)
+}
+
 func (m *MockTransactionRepository) GetTransactionByID(ctx context.Context, txID string) (*transaction.Transaction, error) {
 	args := m.Called(ctx, txID)
 	if args.Get(0) == nil {
@@ -96,10 +114,10 @@ func TestGetTransactionsByFamilyID(t *testing.T) {
 		},
 	}
 
-	mockRepo.On("GetTransactionsByFamilyID", mock.Anything, "family-1").Return(txList, nil)
+	mockRepo.On("GetTransactionsByFamilyIDAndPeriod", mock.Anything, "family-1", 2026, 8).Return(txList, nil)
 
 	svc := transaction.NewService(mockRepo, nil, nil)
-	result, err := svc.GetTransactions(context.Background(), "family-1")
+	result, err := svc.GetTransactions(context.Background(), "family-1", 2026, 8)
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
