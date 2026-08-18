@@ -19,20 +19,30 @@ import {
 export const useTransactionStore = defineStore('transaction', () => {
   const transactions = ref<Transaction[]>([]);
   const proposals = ref<Proposal[]>([]);
+  const selectedYear = ref<number>(new Date().getFullYear());
+  const selectedMonth = ref<number>(new Date().getMonth() + 1);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  async function fetchTransactions() {
+  async function fetchTransactions(year?: number, month?: number) {
     loading.value = true;
     error.value = null;
+    const y = year !== undefined ? year : selectedYear.value;
+    const m = month !== undefined ? month : selectedMonth.value;
     try {
-      const response = await getTransactions();
+      const response = await getTransactions(y, m);
       transactions.value = response.data.data || [];
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch transactions';
     } finally {
       loading.value = false;
     }
+  }
+
+  function setPeriod(year: number, month: number) {
+    selectedYear.value = year;
+    selectedMonth.value = month;
+    return fetchTransactions(year, month);
   }
 
   async function addTransaction(payload: CreateTransactionPayload) {
@@ -143,9 +153,12 @@ export const useTransactionStore = defineStore('transaction', () => {
   return {
     transactions,
     proposals,
+    selectedYear,
+    selectedMonth,
     loading,
     error,
     fetchTransactions,
+    setPeriod,
     addTransaction,
     editTransaction,
     removeTransaction,
