@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from '../locales'
 
 const props = defineProps<{
   familyName?: string
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (e: 'open-notifications'): void
 }>()
 
+const { t } = useI18n()
 const isPeriodDropdownOpen = ref(false)
 
 const months = [
@@ -30,7 +32,7 @@ const months = [
   { value: 12, label: 'Dec' },
 ]
 
-const years = [props.selectedYear - 1, props.selectedYear, props.selectedYear + 1]
+const years = computed(() => [props.selectedYear - 1, props.selectedYear, props.selectedYear + 1])
 
 const currentMonthLabel = computed(() => {
   const m = months.find(item => item.value === props.selectedMonth)
@@ -48,10 +50,10 @@ const selectPeriod = (month: number, year: number) => {
     <!-- Title & Greeting -->
     <div>
       <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-sans">
-        Family Dashboard
+        {{ t('extra.headerTitle') }}
       </h1>
       <p class="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-        Welcome back, {{ familyName || 'Miller Family' }}! Everything is on track for {{ currentMonthLabel }}.
+        {{ t('extra.welcome', { name: familyName || t('extra.defaultFamily'), month: currentMonthLabel }) }}
       </p>
     </div>
 
@@ -81,7 +83,7 @@ const selectPeriod = (month: number, year: number) => {
           class="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-40 animate-in fade-in zoom-in-95 duration-100"
         >
           <div class="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-2 px-1">
-            Pilih Periode
+            {{ t('extra.selectPeriod') }}
           </div>
           <div class="grid grid-cols-3 gap-1.5 mb-3">
             <button
@@ -95,7 +97,7 @@ const selectPeriod = (month: number, year: number) => {
             </button>
           </div>
           <div class="flex items-center justify-between border-t border-slate-100 pt-2 px-1">
-            <span class="text-xs text-slate-500 font-medium">Tahun:</span>
+            <span class="text-xs text-slate-500 font-medium">{{ t('extra.year') }}:</span>
             <div class="flex gap-1">
               <button
                 v-for="y in years"
