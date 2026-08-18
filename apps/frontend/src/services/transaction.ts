@@ -1,25 +1,27 @@
 import apiClient from './api';
 
+export type TransactionType = 'income' | 'expense' | 'allocation';
+
 export interface Transaction {
   id: string;
   wallet_id: string;
   user_id?: string;
-  type: 'income' | 'expense';
+  type: TransactionType;
   amount: number;
   description?: string;
   created_at: string;
 }
 
 export interface CreateTransactionPayload {
-  wallet_id: string;
-  type: 'income' | 'expense';
+  wallet_id?: string;
+  type: TransactionType;
   amount: number;
   description?: string;
 }
 
 export interface UpdateTransactionPayload {
   wallet_id?: string;
-  type: 'income' | 'expense';
+  type: TransactionType;
   amount: number;
   description?: string;
 }
@@ -50,8 +52,14 @@ export interface CreateProposalPayload {
   payload?: any;
 }
 
-export const getTransactions = () =>
-  apiClient.get<{ data: Transaction[] }>('/transaction');
+export const getTransactions = (year?: number, month?: number) => {
+  const params: Record<string, number> = {};
+  if (year && month) {
+    params.year = year;
+    params.month = month;
+  }
+  return apiClient.get<{ data: Transaction[] }>('/transaction', { params });
+};
 
 export const createTransaction = (payload: CreateTransactionPayload) =>
   apiClient.post<{ data: Transaction }>('/transaction', payload);

@@ -14,6 +14,7 @@ export interface Family {
   invite_code: string;
   telegram_chat_id?: number;
   monthly_income: number;
+  primary_balance: number;
   created_by?: string;
   members?: FamilyMember[];
   created_at: string;
