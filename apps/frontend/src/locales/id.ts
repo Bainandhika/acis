@@ -78,17 +78,28 @@ export const id = {
 
   // Dashboard View - Widgets (Unnumbered)
   dashboard: {
+    primaryBalance: {
+      title: 'Saldo Utama Keluarga',
+      subtitle: 'Dana cadangan utama keluarga yang siap dialokasikan',
+      allocateBtn: 'Alokasikan ke Dompet',
+      addIncomeBtn: 'Tambah Pemasukan',
+      desc: 'Semua pemasukan keluarga akan masuk ke Saldo Utama terlebih dahulu sebelum dialokasikan ke amplop dompet.',
+    },
+    periodSelector: {
+      monthlyPeriod: 'Periode Bulanan',
+      allPeriods: 'Semua Periode',
+    },
     financialSummary: {
-      title: 'Ringkasan Keuangan Keseluruhan',
-      subtitle: 'Performa arus kas riil 7 hari terakhir',
+      title: 'Ringkasan Keuangan',
+      subtitle: 'Performa arus kas riil untuk bulan yang dipilih',
       recordTxBtn: 'Catat Transaksi',
-      totalBalance: 'Total Saldo',
+      totalBalance: 'Total Saldo Dompet',
       totalBalanceDesc: 'Jumlah total semua amplop dompet aktif',
-      sevenDaysIncome: 'Pemasukan 7 Hari',
-      sevenDaysIncomeDesc: 'Total diterima dalam 7 hari terakhir',
-      sevenDaysExpense: 'Pengeluaran 7 Hari',
-      sevenDaysExpenseDesc: 'Total dibelanjakan dalam 7 hari terakhir',
-      sevenDaysView: 'Tampilan 7 Hari',
+      sevenDaysIncome: 'Pemasukan Bulanan',
+      sevenDaysIncomeDesc: 'Total diterima dalam periode ini',
+      sevenDaysExpense: 'Pengeluaran Bulanan',
+      sevenDaysExpenseDesc: 'Total dibelanjakan dalam periode ini',
+      sevenDaysView: 'Tampilan Bulanan',
       income: 'Pemasukan',
       expense: 'Pengeluaran',
     },
@@ -199,6 +210,20 @@ export const id = {
 
   // Modals
   modals: {
+    allocate: {
+      title: 'Alokasi Saldo Utama',
+      subtitle: 'Distribusikan dana dari saldo utama ke amplop dompet pengeluaran.',
+      sourceBalance: 'Saldo Utama Tersedia',
+      targetWallet: 'Amplop Dompet Tujuan',
+      amountLabel: 'Nominal Alokasi (Rp)',
+      descLabel: 'Catatan / Alasan (Opsional)',
+      descPlaceholder: 'contoh: Alokasi anggaran makan mingguan',
+      cancel: 'Batal',
+      save: 'Konfirmasi Alokasi',
+      saving: 'Mengalokasikan...',
+      insufficientFunds: 'Nominal alokasi melebihi saldo utama yang tersedia.',
+      noWallets: 'Harap buat minimal satu amplop dompet terlebih dahulu.',
+    },
     createWallet: {
       title: 'Buat Dompet Baru',
       subtitle: 'Tambahkan amplop virtual untuk mengelola pengeluaran.',

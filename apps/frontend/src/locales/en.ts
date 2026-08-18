@@ -8,7 +8,7 @@ export const en = {
   nav: {
     dashboard: 'Dashboard',
     wallets: 'Wallets',
-    transaksi: 'Transaksi',
+    transaksi: 'Transaction',
     reports: 'Financial Reports',
     botConnected: 'Bot Connected',
     botOffline: 'Bot Offline',
@@ -78,17 +78,28 @@ export const en = {
 
   // Dashboard View - Widgets (Unnumbered)
   dashboard: {
+    primaryBalance: {
+      title: 'Primary Balance',
+      subtitle: 'Main unallocated family fund pool',
+      allocateBtn: 'Allocate to Wallet',
+      addIncomeBtn: 'Add Income',
+      desc: 'All family income funds the Primary Balance first before being allocated to envelopes.',
+    },
+    periodSelector: {
+      monthlyPeriod: 'Monthly Period',
+      allPeriods: 'All Periods',
+    },
     financialSummary: {
-      title: 'Overall Financial Summary',
-      subtitle: 'Real cashflow performance for the last 7 days',
+      title: 'Financial Summary',
+      subtitle: 'Real cashflow performance for the selected month',
       recordTxBtn: 'Record Transaction',
-      totalBalance: 'Total Balance',
+      totalBalance: 'Total Wallet Balance',
       totalBalanceDesc: 'Sum of all active wallet envelopes',
-      sevenDaysIncome: '7-Day Income',
-      sevenDaysIncomeDesc: 'Total received in last 7 days',
-      sevenDaysExpense: '7-Day Expenses',
-      sevenDaysExpenseDesc: 'Total spent in last 7 days',
-      sevenDaysView: '7-Day View',
+      sevenDaysIncome: 'Monthly Income',
+      sevenDaysIncomeDesc: 'Total received in selected period',
+      sevenDaysExpense: 'Monthly Expenses',
+      sevenDaysExpenseDesc: 'Total spent in selected period',
+      sevenDaysView: 'Monthly View',
       income: 'Income',
       expense: 'Expense',
     },
@@ -199,6 +210,20 @@ export const en = {
 
   // Modals
   modals: {
+    allocate: {
+      title: 'Allocate Primary Balance',
+      subtitle: 'Distribute funds from the primary balance to a wallet envelope.',
+      sourceBalance: 'Available Primary Balance',
+      targetWallet: 'Target Wallet Envelope',
+      amountLabel: 'Allocation Amount (Rp)',
+      descLabel: 'Memo / Reason (Optional)',
+      descPlaceholder: 'e.g. Weekly grocery budget allocation',
+      cancel: 'Cancel',
+      save: 'Confirm Allocation',
+      saving: 'Allocating...',
+      insufficientFunds: 'Allocation amount exceeds available primary balance.',
+      noWallets: 'Please create at least one wallet envelope first.',
+    },
     createWallet: {
       title: 'Create New Wallet',
       subtitle: 'Add a virtual envelope to manage your budget.',
