@@ -17,20 +17,17 @@ const onboardingMessage = `👋 *Selamat datang di ACIS Bot!*
 Saya membantu Anda mencatat transaksi keuangan dan melihat saldo dompet keluarga langsung dari Telegram.
 
 📋 *Daftar Perintah:*
-• /link [kode] atau /hubungkan [kode]
+• /link {code} | /hubungkan {kode}
   _Menghubungkan obrolan Telegram ini ke ruang keluarga Anda._
-• /balance atau /saldo
+• /balance | /saldo
   _Melihat saldo seluruh dompet keluarga beserta ID Dompet._
-• /transaction [wallet_id] [income/expense] [jumlah] [keterangan]
+• /transaction {wallet id} {income/expense} {nominal} {description} | /transaksi {id dompet} {pemasukan/pengeluaran} {nominal} {keterangan}
   _Mencatat transaksi baru ke dompet keluarga._
-  _Alias:_ /transaksi [wallet_id] [pemasukan/pengeluaran] [jumlah] [keterangan]
 
 💡 *Contoh:*
-/link SMTH01
-/saldo
-/transaksi SMTH01-1 pengeluaran 50000 Belanja sayur di pasar
-
-_Gunakan /balance atau /saldo untuk melihat ID Dompet Anda._`
+• /link SMTH01
+• /saldo
+• /transaksi SMTH01-1 pengeluaran 50000 Belanja sayur di pasar`
 
 type Dispatcher struct {
 	tg *telegram.Client
