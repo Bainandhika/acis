@@ -80,7 +80,11 @@ func (h *FamilyHandler) GetMyFamily(c *gin.Context) {
 
 	res, err := h.svc.GetMyFamily(c.Request.Context(), uidStr)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if res == nil {
+		c.JSON(http.StatusOK, gin.H{"data": nil})
 		return
 	}
 

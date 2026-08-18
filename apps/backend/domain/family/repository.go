@@ -24,6 +24,7 @@ type FamilyRepository interface {
 	GetMembers(ctx context.Context, familyID string) ([]FamilyMember, error)
 	UpdateTelegramChatID(ctx context.Context, familyID string, chatID *int64) error
 	FindByTelegramChatID(ctx context.Context, chatID int64) (*Family, error)
+	UpdatePrimaryBalance(ctx context.Context, exec DBExecutor, familyID string, newBalance float64) error
 	UpdateMonthlyIncome(ctx context.Context, familyID string, income float64) error
 	UpdateFamilyName(ctx context.Context, familyID string, name string) error
 	IncrementWalletCounter(ctx context.Context, familyID string) (int, error)
@@ -53,7 +54,7 @@ func (r *familyRepoImpl) CreateFamily(ctx context.Context, exec DBExecutor, f *F
 }
 
 func (r *familyRepoImpl) FindFamilyByID(ctx context.Context, id string) (*Family, error) {
-	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, wallet_counter, created_by, created_at, updated_at FROM families WHERE id = $1`
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, primary_balance, wallet_counter, created_by, created_at, updated_at FROM families WHERE id = $1`
 	var f Family
 	err := r.db.GetContext(ctx, &f, query, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -63,7 +64,7 @@ func (r *familyRepoImpl) FindFamilyByID(ctx context.Context, id string) (*Family
 }
 
 func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string) (*Family, error) {
-	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, wallet_counter, created_by, created_at, updated_at FROM families WHERE invite_code = $1`
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, primary_balance, wallet_counter, created_by, created_at, updated_at FROM families WHERE invite_code = $1`
 	var f Family
 	err := r.db.GetContext(ctx, &f, query, inviteCode)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -73,7 +74,7 @@ func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string
 }
 
 func (r *familyRepoImpl) FindFamilyByUserID(ctx context.Context, userID string) (*Family, error) {
-	query := `SELECT f.id, f.name, f.invite_code, f.telegram_chat_id, f.monthly_income, f.wallet_counter, f.created_by, f.created_at, f.updated_at 
+	query := `SELECT f.id, f.name, f.invite_code, f.telegram_chat_id, f.monthly_income, f.primary_balance, f.wallet_counter, f.created_by, f.created_at, f.updated_at 
 			  FROM families f
 			  JOIN family_members fm ON f.id = fm.family_id
 			  WHERE fm.user_id = $1 LIMIT 1`
@@ -126,13 +127,19 @@ func (r *familyRepoImpl) UpdateTelegramChatID(ctx context.Context, familyID stri
 }
 
 func (r *familyRepoImpl) FindByTelegramChatID(ctx context.Context, chatID int64) (*Family, error) {
-	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, wallet_counter, created_by, created_at, updated_at FROM families WHERE telegram_chat_id = $1`
+	query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, primary_balance, wallet_counter, created_by, created_at, updated_at FROM families WHERE telegram_chat_id = $1`
 	var f Family
 	err := r.db.GetContext(ctx, &f, query, chatID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return &f, err
+}
+
+func (r *familyRepoImpl) UpdatePrimaryBalance(ctx context.Context, exec DBExecutor, familyID string, newBalance float64) error {
+	query := `UPDATE families SET primary_balance = $1, updated_at = NOW() WHERE id = $2`
+	_, err := exec.ExecContext(ctx, query, newBalance, familyID)
+	return err
 }
 
 func (r *familyRepoImpl) UpdateMonthlyIncome(ctx context.Context, familyID string, income float64) error {

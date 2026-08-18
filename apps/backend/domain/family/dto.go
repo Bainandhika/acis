@@ -39,6 +39,7 @@ type FamilyDTO struct {
 	InviteCode     string            `json:"invite_code"`
 	TelegramChatID *int64            `json:"telegram_chat_id,omitempty"`
 	MonthlyIncome  float64           `json:"monthly_income"`
+	PrimaryBalance float64           `json:"primary_balance"`
 	WalletCounter  int               `json:"wallet_counter"`
 	CreatedBy      *string           `json:"created_by,omitempty"`
 	Members        []FamilyMemberDTO `json:"members,omitempty"`

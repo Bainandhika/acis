@@ -93,13 +93,14 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 	}
 
 	return &FamilyDTO{
-		ID:            family.ID,
-		Name:          family.Name,
-		InviteCode:    family.InviteCode,
-		MonthlyIncome: family.MonthlyIncome,
-		WalletCounter: family.WalletCounter,
-		CreatedBy:     family.CreatedBy,
-		CreatedAt:     family.CreatedAt,
+		ID:             family.ID,
+		Name:           family.Name,
+		InviteCode:     family.InviteCode,
+		MonthlyIncome:  family.MonthlyIncome,
+		PrimaryBalance: family.PrimaryBalance,
+		WalletCounter:  family.WalletCounter,
+		CreatedBy:      family.CreatedBy,
+		CreatedAt:      family.CreatedAt,
 	}, nil
 }
 
@@ -133,6 +134,7 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
@@ -141,8 +143,11 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 
 func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*FamilyDTO, error) {
 	family, err := s.repo.FindFamilyByUserID(ctx, userID)
-	if err != nil || family == nil {
-		return nil, errors.New("family not found for user")
+	if err != nil {
+		return nil, errors.New("failed to query family membership")
+	}
+	if family == nil {
+		return nil, nil
 	}
 
 	members, err := s.repo.GetMembers(ctx, family.ID)
@@ -171,6 +176,7 @@ func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*Family
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		Members:        memberDTOs,
@@ -210,6 +216,7 @@ func (s *familyService) FindByInviteCode(ctx context.Context, inviteCode string)
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
@@ -227,6 +234,7 @@ func (s *familyService) FindByTelegramChatID(ctx context.Context, chatID int64) 
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
 		MonthlyIncome:  family.MonthlyIncome,
+		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,

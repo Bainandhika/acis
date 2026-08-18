@@ -8,6 +8,7 @@ type Family struct {
 	InviteCode     string    `db:"invite_code" json:"invite_code"`
 	TelegramChatID *int64    `db:"telegram_chat_id" json:"telegram_chat_id,omitempty"`
 	MonthlyIncome  float64   `db:"monthly_income" json:"monthly_income"`
+	PrimaryBalance float64   `db:"primary_balance" json:"primary_balance"`
 	WalletCounter  int       `db:"wallet_counter" json:"wallet_counter"`
 	CreatedBy      *string   `db:"created_by" json:"created_by"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
