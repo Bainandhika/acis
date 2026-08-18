@@ -131,9 +131,15 @@ func runMigrations(db *sqlx.DB, migrationsDir string) {
 		log.Printf(" Applying migration: %s", file.Name())
 
 		filePath := filepath.Join(migrationsDir, file.Name())
-		content, err := ioutil.ReadFile(filePath)
+		contentBytes, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			log.Fatalf("Failed to read migration file %s: %v", file.Name(), err)
+		}
+
+		sqlContent := string(contentBytes)
+		if strings.Contains(sqlContent, "-- +goose Down") {
+			parts := strings.Split(sqlContent, "-- +goose Down")
+			sqlContent = parts[0]
 		}
 
 		tx, err := db.Begin()
@@ -141,7 +147,7 @@ func runMigrations(db *sqlx.DB, migrationsDir string) {
 			log.Fatalf("Failed to begin transaction: %v", err)
 		}
 
-		if _, err := tx.Exec(string(content)); err != nil {
+		if _, err := tx.Exec(sqlContent); err != nil {
 			tx.Rollback()
 			log.Fatalf("Failed to execute migration %s: %v", file.Name(), err)
 		}
