@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,8 @@ func NewHandler(svc TransactionService) *TransactionHandler {
 func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	uidStr, _ := userID.(string)
+	familyID, _ := c.Get("family_id")
+	fIDStr, _ := familyID.(string)
 
 	var req CreateTransactionDTO
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -25,6 +28,7 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	}
 
 	req.UserID = uidStr
+	req.FamilyID = fIDStr
 	res, err := h.svc.CreateDirectTransaction(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -68,7 +72,15 @@ func (h *TransactionHandler) GetTransactions(c *gin.Context) {
 	familyID, _ := c.Get("family_id")
 	fIDStr, _ := familyID.(string)
 
-	res, err := h.svc.GetTransactions(c.Request.Context(), fIDStr)
+	var year, month int
+	if yStr := c.Query("year"); yStr != "" {
+		year, _ = strconv.Atoi(yStr)
+	}
+	if mStr := c.Query("month"); mStr != "" {
+		month, _ = strconv.Atoi(mStr)
+	}
+
+	res, err := h.svc.GetTransactions(c.Request.Context(), fIDStr, year, month)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

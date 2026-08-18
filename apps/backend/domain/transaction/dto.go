@@ -6,9 +6,10 @@ import (
 )
 
 type CreateTransactionDTO struct {
-	WalletID    string  `json:"wallet_id" binding:"required"`
+	WalletID    string  `json:"wallet_id"`
 	UserID      string  `json:"-"`
-	Type        string  `json:"type" binding:"required,oneof=income expense"`
+	FamilyID    string  `json:"-"`
+	Type        string  `json:"type" binding:"required,oneof=income expense allocation"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	Description *string `json:"description,omitempty"`
 }
