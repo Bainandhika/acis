@@ -115,14 +115,14 @@ const handleJoin = async () => {
         <button 
           class="flex-1 py-2.5 rounded-xl transition-all cursor-pointer"
           :class="activeTab === 'create' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
-          @click="activeTab === 'create'"
+          @click="activeTab = 'create'"
         >
           {{ t('familySetup.createTab') }}
         </button>
         <button 
           class="flex-1 py-2.5 rounded-xl transition-all cursor-pointer"
           :class="activeTab === 'join' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
-          @click="activeTab === 'join'"
+          @click="activeTab = 'join'"
         >
           {{ t('familySetup.joinTab') }}
         </button>
