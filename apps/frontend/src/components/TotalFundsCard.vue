@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatRp } from '../composables/useCurrency'
+import { useI18n } from '../locales'
 
 const props = defineProps<{
   totalFunds: number
@@ -12,18 +14,14 @@ const emit = defineEmits<{
   (e: 'transfer-money'): void
 }>()
 
-// Currency Formatter - Handles Rupiah or Dollar cleanly
+const { t } = useI18n()
+
 const formattedBalance = computed(() => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(props.totalFunds)
+  return formatRp(props.totalFunds, 0)
 })
 
 const trendDisplay = computed(() => {
-  const p = props.trendPercentage ?? 14.2
+  const p = props.trendPercentage ?? 0
   return p >= 0 ? `+${p.toFixed(1)}%` : `${p.toFixed(1)}%`
 })
 </script>
@@ -33,7 +31,7 @@ const trendDisplay = computed(() => {
     <!-- Top Info -->
     <div class="flex flex-col">
       <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-sans">
-        TOTAL FAMILY FUNDS
+        {{ t('extra.totalFundsLabel') }}
       </span>
       <div class="flex flex-wrap items-baseline gap-3 mt-3">
         <h2 class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight font-sans">
@@ -44,7 +42,7 @@ const trendDisplay = computed(() => {
           <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="18 15 12 9 6 15"></polyline>
           </svg>
-          <span>{{ trendDisplay }} vs last month</span>
+          <span>{{ trendDisplay }} {{ t('extra.vsLastMonth') }}</span>
         </span>
       </div>
     </div>
@@ -62,7 +60,7 @@ const trendDisplay = computed(() => {
           <line x1="12" y1="5" x2="12" y2="19"></line>
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
-        <span>Quick Allocate</span>
+        <span>{{ t('extra.quickAllocate') }}</span>
       </button>
 
       <!-- Transfer Money Button (Subtle Neutral Pill) -->
@@ -71,7 +69,7 @@ const trendDisplay = computed(() => {
         class="flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition active:scale-95 cursor-pointer"
         type="button"
       >
-        <span>Transfer Money</span>
+        <span>{{ t('extra.transferBtn') }}</span>
       </button>
     </div>
   </div>
