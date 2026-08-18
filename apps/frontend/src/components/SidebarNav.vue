@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useFamilyStore } from '../stores/family'
 import { useTransactionStore } from '../stores/transaction'
+import { useI18n } from '../locales'
 
 export type TabKey = 'dashboard' | 'wallets' | 'transactions' | 'members' | 'settings'
 
@@ -20,10 +22,17 @@ const emit = defineEmits<{
 const authStore = useAuthStore()
 const familyStore = useFamilyStore()
 const txStore = useTransactionStore()
+const router = useRouter()
+const { t, locale, setLocale } = useI18n()
 
 const pendingProposalsCount = computed(() => {
   return txStore.proposals.filter(p => p.status === 'pending').length
 })
+
+const handleLogout = async () => {
+  await authStore.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -47,7 +56,7 @@ const pendingProposalsCount = computed(() => {
             <span class="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30">ACIS</span>
           </div>
           <span class="text-xs text-slate-400 font-medium truncate max-w-[130px]">
-            {{ familyStore.family?.name || 'Miller Family' }}
+            {{ familyStore.family?.name || t('extra.defaultFamily') }}
           </span>
         </div>
       </div>
@@ -70,7 +79,7 @@ const pendingProposalsCount = computed(() => {
               <rect x="3" y="14" width="7" height="7" rx="2"></rect>
             </svg>
           </div>
-          <span v-if="!isCollapsed">Dashboard</span>
+          <span v-if="!isCollapsed">{{ t('nav.dashboard') }}</span>
         </button>
 
         <!-- 2. Wallets -->
@@ -88,7 +97,7 @@ const pendingProposalsCount = computed(() => {
               <circle cx="18" cy="12" r="2"></circle>
             </svg>
           </div>
-          <span v-if="!isCollapsed">Wallets</span>
+          <span v-if="!isCollapsed">{{ t('nav.wallets') }}</span>
         </button>
 
         <!-- 3. Transactions -->
@@ -110,7 +119,7 @@ const pendingProposalsCount = computed(() => {
                 <line x1="3" y1="18" x2="3.01" y2="18"></line>
               </svg>
             </div>
-            <span v-if="!isCollapsed">Transactions</span>
+            <span v-if="!isCollapsed">{{ t('nav.transaksi') }}</span>
           </div>
           <span
             v-if="!isCollapsed && pendingProposalsCount > 0"
@@ -136,7 +145,7 @@ const pendingProposalsCount = computed(() => {
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </div>
-          <span v-if="!isCollapsed">Family Members</span>
+          <span v-if="!isCollapsed">{{ t('dashboard.familyMembers.title') }}</span>
         </button>
 
         <!-- 5. Settings -->
@@ -153,19 +162,50 @@ const pendingProposalsCount = computed(() => {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
           </div>
-          <span v-if="!isCollapsed">Settings</span>
+          <span v-if="!isCollapsed">{{ t('extra.settings') }}</span>
         </button>
       </nav>
     </div>
 
-    <!-- Bottom Section: Live Sync Status -->
+    <!-- Bottom Section: Language Selector, Logout & Live Sync -->
     <div class="flex flex-col gap-3 pt-4 border-t border-slate-800/80">
+      <!-- Language Toggle -->
+      <div v-if="!isCollapsed" class="flex items-center justify-between px-1">
+        <div class="inline-flex p-1 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-bold">
+          <button 
+            @click="setLocale('en')"
+            class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+            :class="locale === 'en' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+            type="button"
+          >
+            EN
+          </button>
+          <button 
+            @click="setLocale('id')"
+            class="px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+            :class="locale === 'id' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+            type="button"
+          >
+            ID
+          </button>
+        </div>
+
+        <!-- Sign Out Button -->
+        <button
+          @click="handleLogout"
+          class="text-xs font-semibold text-rose-400 hover:text-rose-300 transition cursor-pointer px-2 py-1"
+          :title="t('nav.signOut')"
+        >
+          {{ t('nav.signOut') }}
+        </button>
+      </div>
+
       <div v-if="!isCollapsed" class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800">
         <span class="relative flex h-2 w-2">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
-        <span class="text-xs font-medium text-slate-400">All accounts synced</span>
+        <span class="text-xs font-medium text-slate-400">{{ t('extra.synced') }}</span>
       </div>
 
       <!-- Collapse Toggle Button -->
