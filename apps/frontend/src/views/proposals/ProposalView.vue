@@ -1,10 +1,75 @@
 <template>
   <section>
-    <div class="mb-6 flex items-end justify-between"><div><p class="text-sm font-semibold uppercase tracking-widest text-amber-600">Persetujuan</p><h2 class="mt-1 text-3xl font-bold">Proposal keluarga</h2></div><button v-if="isAdmin" class="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white" @click="reviewing = null">{{ pending.length }} menunggu</button></div>
-    <form v-if="family" class="mb-5 grid gap-3 rounded-lg bg-white p-5 shadow-sm md:grid-cols-4" @submit.prevent="submitProposal"><select v-model="proposal.wallet_id" required class="rounded border p-2"><option value="" disabled>Pilih dompet</option><option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }}</option></select><input v-model="proposal.title" required minlength="3" placeholder="Judul proposal" class="rounded border p-2" /><select v-model="proposal.request_type" class="rounded border p-2"><option value="add_transaction">Tambah transaksi</option><option value="edit_transaction">Edit transaksi</option><option value="delete_transaction">Hapus transaksi</option></select><input v-model.number="proposal.amount" type="number" min="0" placeholder="Jumlah" class="rounded border p-2" /><input v-model="proposal.description" placeholder="Deskripsi" class="rounded border p-2 md:col-span-3" /><button class="rounded bg-amber-500 p-2 font-semibold text-white">Ajukan proposal</button></form>
+    <div class="mb-6 flex items-end justify-between">
+      <div>
+        <p class="text-sm font-semibold uppercase tracking-widest text-amber-600">Persetujuan</p>
+        <h2 class="mt-1 text-3xl font-bold">Proposal keluarga</h2>
+      </div>
+      <button v-if="isAdmin" type="button" class="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+        @click="reviewing = null">{{ pending.length }} menunggu</button>
+    </div>
+    <form v-if="family" class="mb-5 grid gap-3 rounded-lg bg-white p-5 shadow-sm md:grid-cols-4"
+      @submit.prevent="submitProposal">
+      <div>
+        <label for="proposal-wallet" class="mb-2 block text-sm font-medium text-slate-700">Dompet</label>
+        <select id="proposal-wallet" v-model="proposal.wallet_id" required class="w-full rounded border p-2">
+          <option value="" disabled>Pilih dompet</option>
+          <option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }}</option>
+        </select>
+      </div>
+      <div>
+        <label for="proposal-title" class="mb-2 block text-sm font-medium text-slate-700">Judul proposal</label>
+        <input id="proposal-title" v-model="proposal.title" required minlength="3" placeholder="Judul proposal"
+          class="w-full rounded border p-2" />
+      </div>
+      <div>
+        <label for="proposal-type" class="mb-2 block text-sm font-medium text-slate-700">Jenis permintaan</label>
+        <select id="proposal-type" v-model="proposal.request_type" class="w-full rounded border p-2">
+          <option value="add_transaction">Tambah transaksi</option>
+          <option value="edit_transaction">Edit transaksi</option>
+          <option value="delete_transaction">Hapus transaksi</option>
+        </select>
+      </div>
+      <div>
+        <label for="proposal-amount" class="mb-2 block text-sm font-medium text-slate-700">Jumlah</label>
+        <input id="proposal-amount" v-model.number="proposal.amount" type="number" min="0" placeholder="Jumlah"
+          class="w-full rounded border p-2" />
+      </div>
+      <div class="md:col-span-3">
+        <label for="proposal-description" class="mb-2 block text-sm font-medium text-slate-700">Deskripsi</label>
+        <input id="proposal-description" v-model="proposal.description" placeholder="Deskripsi"
+          class="w-full rounded border p-2" />
+      </div>
+      <div class="flex items-end">
+        <button type="submit" class="w-full rounded bg-amber-500 p-2 font-semibold text-white">Ajukan proposal</button>
+      </div>
+    </form>
     <p v-if="error" class="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
-    <div v-if="!proposals.length" class="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">Belum ada proposal.</div>
-    <div v-else class="space-y-3"><article v-for="proposal in proposals" :key="proposal.id" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-3"><div><h3 class="font-semibold">{{ proposal.title }}</h3><p class="mt-1 text-sm text-slate-500">{{ proposal.description || 'Tidak ada deskripsi' }}</p></div><span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusClass(proposal.status)">{{ proposal.status }}</span></div><div class="mt-4 flex items-center justify-between"><strong>{{ money(proposal.amount) }}</strong><div v-if="isAdmin && proposal.status === 'pending'" class="flex gap-2"><button class="rounded bg-emerald-600 px-3 py-2 text-sm font-medium text-white" @click="decide(proposal.id, true)">Setujui</button><button class="rounded border border-red-200 px-3 py-2 text-sm font-medium text-red-700" @click="decide(proposal.id, false)">Tolak</button></div></div></article></div>
+    <div v-if="!proposals.length"
+      class="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">Belum ada
+      proposal.</div>
+    <div v-else class="space-y-3">
+      <article v-for="proposal in proposals" :key="proposal.id"
+        class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="font-semibold">{{ proposal.title }}</h3>
+            <p class="mt-1 text-sm text-slate-500">{{ proposal.description || 'Tidak ada deskripsi' }}</p>
+          </div>
+          <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusClass(proposal.status)">{{
+            proposal.status }}</span>
+        </div>
+        <div class="mt-4 flex items-center justify-between">
+          <strong>{{ money(proposal.amount) }}</strong>
+          <div v-if="isAdmin && proposal.status === 'pending'" class="flex gap-2">
+            <button type="button" class="rounded bg-emerald-600 px-3 py-2 text-sm font-medium text-white"
+              @click="decide(proposal.id, true)">Setujui</button>
+            <button type="button" class="rounded border border-red-200 px-3 py-2 text-sm font-medium text-red-700"
+              @click="decide(proposal.id, false)">Tolak</button>
+          </div>
+        </div>
+      </article>
+    </div>
   </section>
 </template>
 <script setup>
@@ -15,7 +80,11 @@ const proposals = ref([]); const wallets = ref([]); const family = ref(null); co
 const isAdmin = computed(() => authStore.user?.role === 'admin' || family.value?.members?.some(member => member.user_id === authStore.user?.id && member.role === 'admin'))
 const pending = computed(() => proposals.value.filter(proposal => proposal.status === 'pending'))
 const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
-const statusClass = status => status === 'approved' ? 'bg-emerald-100 text-emerald-700' : status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+const statusClass = status => {
+  if (status === 'approved') return 'bg-emerald-100 text-emerald-700'
+  if (status === 'rejected') return 'bg-red-100 text-red-700'
+  return 'bg-amber-100 text-amber-700'
+}
 async function load() { try { const [f, p, w] = await Promise.all([getFamily(), getProposals(), getWallets()]); family.value = f.data; proposals.value = p.data || []; wallets.value = w.data || [] } catch (loadError) { error.value = loadError.message } }
 async function submitProposal() { try { await createProposal(proposal.value); proposal.value = { wallet_id: '', title: '', amount: 0, description: '', request_type: 'add_transaction' }; await load() } catch (submitError) { error.value = submitError.message } }
 async function decide(id, approve) { try { await (approve ? approveProposal(id) : rejectProposal(id)); await load() } catch (actionError) { error.value = actionError.message } }
