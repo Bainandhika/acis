@@ -44,7 +44,8 @@ func (s *transactionService) CreateDirectTransaction(ctx context.Context, req Cr
 	}
 	defer tx.Rollback()
 
-	if req.Type == "income" {
+	switch req.Type {
+	case "income":
 		// Requirement: Income transactions increase the family primary balance rather than wallets
 		if req.FamilyID != "" {
 			fam, err := s.repo.GetFamilyForUpdate(ctx, tx, req.FamilyID)
@@ -69,7 +70,7 @@ func (s *transactionService) CreateDirectTransaction(ctx context.Context, req Cr
 				return nil, errors.New("failed to update primary balance")
 			}
 		}
-	} else if req.Type == "allocation" {
+	case "allocation":
 		// Requirement: Allocation moves funds from primary balance to a target wallet
 		if req.WalletID == "" {
 			return nil, errors.New("target wallet id is required for allocation")
@@ -102,7 +103,7 @@ func (s *transactionService) CreateDirectTransaction(ctx context.Context, req Cr
 		if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newWalletBal); err != nil {
 			return nil, errors.New("failed to credit wallet balance")
 		}
-	} else if req.Type == "expense" {
+	case "expense":
 		if req.WalletID == "" {
 			return nil, errors.New("wallet id is required for expense")
 		}
@@ -117,13 +118,14 @@ func (s *transactionService) CreateDirectTransaction(ctx context.Context, req Cr
 		if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newBalance); err != nil {
 			return nil, errors.New("failed to update wallet balance")
 		}
-	} else {
+	default:
 		return nil, errors.New("invalid transaction type")
 	}
 
 	record := &Transaction{
 		ID:          uuid.NewString(),
 		WalletID:    req.WalletID,
+		FamilyID:    req.FamilyID,
 		CreatedBy:   &req.UserID,
 		Type:        req.Type,
 		Amount:      req.Amount,
@@ -161,17 +163,30 @@ func (s *transactionService) UpdateTransaction(ctx context.Context, txID string,
 		return nil, errors.New("transaction not found")
 	}
 
-	wallet, err := s.repo.GetWalletForUpdate(ctx, tx, record.WalletID)
-	if err != nil || wallet == nil {
-		return nil, errors.New("associated wallet not found")
-	}
-	if wallet.FamilyID != req.FamilyID {
+	if record.WalletID == "" && record.FamilyID != req.FamilyID {
 		return nil, errors.New("unauthorized transaction update")
+	}
+	var wallet *Wallet
+	if record.WalletID != "" {
+		wallet, err = s.repo.GetWalletForUpdate(ctx, tx, record.WalletID)
+		if err != nil || wallet == nil || wallet.FamilyID != req.FamilyID {
+			return nil, errors.New("associated wallet not found")
+		}
 	}
 
 	// 1. Reverse old transaction effect
 	var restoredBalance float64
-	if record.Type == "expense" {
+	if record.WalletID == "" {
+		fam, err := s.repo.GetFamilyForUpdate(ctx, tx, req.FamilyID)
+		if err != nil || fam == nil {
+			return nil, errors.New("family record not found")
+		}
+		if record.Type == "income" {
+			restoredBalance = fam.PrimaryBalance - record.Amount
+		} else {
+			restoredBalance = fam.PrimaryBalance
+		}
+	} else if record.Type == "expense" {
 		restoredBalance = wallet.CurrentBalance + record.Amount
 	} else if record.Type == "income" {
 		restoredBalance = wallet.CurrentBalance - record.Amount
@@ -181,7 +196,12 @@ func (s *transactionService) UpdateTransaction(ctx context.Context, txID string,
 
 	// 2. Apply new transaction effect
 	var newBalance float64
-	if req.Type == "expense" {
+	if record.WalletID == "" {
+		if req.Type != "income" {
+			return nil, errors.New("wallet id is required for expense")
+		}
+		newBalance = restoredBalance + req.Amount
+	} else if req.Type == "expense" {
 		if restoredBalance < req.Amount {
 			return nil, errors.New("insufficient wallet balance for update")
 		}
@@ -192,7 +212,11 @@ func (s *transactionService) UpdateTransaction(ctx context.Context, txID string,
 		return nil, errors.New("invalid transaction type")
 	}
 
-	if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newBalance); err != nil {
+	if record.WalletID == "" {
+		if err := s.repo.UpdateFamilyPrimaryBalance(ctx, tx, req.FamilyID, newBalance); err != nil {
+			return nil, errors.New("failed to update primary balance")
+		}
+	} else if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newBalance); err != nil {
 		return nil, errors.New("failed to update wallet balance")
 	}
 
@@ -227,17 +251,31 @@ func (s *transactionService) DeleteTransaction(ctx context.Context, txID string,
 		return errors.New("transaction not found")
 	}
 
-	wallet, err := s.repo.GetWalletForUpdate(ctx, tx, record.WalletID)
-	if err != nil || wallet == nil {
-		return errors.New("associated wallet not found")
-	}
-	if wallet.FamilyID != familyID {
+	var wallet *Wallet
+	if record.WalletID != "" {
+		wallet, err = s.repo.GetWalletForUpdate(ctx, tx, record.WalletID)
+		if err != nil || wallet == nil || wallet.FamilyID != familyID {
+			return errors.New("associated wallet not found")
+		}
+	} else if record.FamilyID != familyID {
 		return errors.New("unauthorized transaction delete")
 	}
 
 	// Reverse the transaction's financial effect on the wallet
 	var newBalance float64
-	if record.Type == "expense" {
+	if record.WalletID == "" {
+		fam, err := s.repo.GetFamilyForUpdate(ctx, tx, familyID)
+		if err != nil || fam == nil {
+			return errors.New("family record not found")
+		}
+		newBalance = fam.PrimaryBalance
+		if record.Type == "income" {
+			newBalance += -record.Amount
+		}
+		if err := s.repo.UpdateFamilyPrimaryBalance(ctx, tx, familyID, newBalance); err != nil {
+			return errors.New("failed to restore primary balance")
+		}
+	} else if record.Type == "expense" {
 		newBalance = wallet.CurrentBalance + record.Amount
 	} else if record.Type == "income" {
 		newBalance = wallet.CurrentBalance - record.Amount
@@ -245,8 +283,10 @@ func (s *transactionService) DeleteTransaction(ctx context.Context, txID string,
 		newBalance = wallet.CurrentBalance
 	}
 
-	if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newBalance); err != nil {
-		return errors.New("failed to restore wallet balance")
+	if record.WalletID != "" {
+		if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newBalance); err != nil {
+			return errors.New("failed to restore wallet balance")
+		}
 	}
 
 	if err := s.repo.DeleteTransaction(ctx, tx, txID); err != nil {
@@ -259,7 +299,7 @@ func (s *transactionService) DeleteTransaction(ctx context.Context, txID string,
 func (s *transactionService) GetTransactions(ctx context.Context, familyID string, year int, month int) ([]TransactionDTO, error) {
 	records, err := s.repo.GetTransactionsByFamilyIDAndPeriod(ctx, familyID, year, month)
 	if err != nil {
-		return nil, errors.New("failed to fetch transactions")
+		return nil, fmt.Errorf("failed to fetch transactions: %w", err)
 	}
 
 	var dtos []TransactionDTO
@@ -386,11 +426,12 @@ func (s *transactionService) ApproveProposal(ctx context.Context, proposalID str
 			return errors.New("wallet not found")
 		}
 		var newBal float64
-		if targetTx.Type == "expense" {
+		switch targetTx.Type {
+		case "expense":
 			newBal = wallet.CurrentBalance + targetTx.Amount
-		} else if targetTx.Type == "income" {
+		case "income":
 			newBal = wallet.CurrentBalance - targetTx.Amount
-		} else {
+		default:
 			newBal = wallet.CurrentBalance
 		}
 		if err := s.repo.UpdateWalletBalance(ctx, tx, wallet.ID, newBal); err != nil {
@@ -432,21 +473,23 @@ func (s *transactionService) ApproveProposal(ctx context.Context, proposalID str
 		}
 
 		var restoredBal float64
-		if targetTx.Type == "expense" {
+		switch targetTx.Type {
+		case "expense":
 			restoredBal = wallet.CurrentBalance + targetTx.Amount
-		} else if targetTx.Type == "income" {
+		case "income":
 			restoredBal = wallet.CurrentBalance - targetTx.Amount
-		} else {
+		default:
 			restoredBal = wallet.CurrentBalance
 		}
 
 		var newBal float64
-		if editData.Type == "expense" {
+		switch editData.Type {
+		case "expense":
 			if restoredBal < editData.Amount {
 				return errors.New("insufficient wallet balance for approved edit")
 			}
 			newBal = restoredBal - editData.Amount
-		} else if editData.Type == "income" {
+		case "income":
 			newBal = restoredBal + editData.Amount
 		}
 
