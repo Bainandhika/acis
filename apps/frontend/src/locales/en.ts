@@ -8,7 +8,9 @@ export const en = {
   nav: {
     dashboard: 'Dashboard',
     wallets: 'Wallets',
-    transaksi: 'Transaction',
+    transactions: 'Transactions',
+    members: 'Members',
+    settings: 'Settings',
     reports: 'Financial Reports',
     botConnected: 'Bot Connected',
     botOffline: 'Bot Offline',

@@ -9,6 +9,7 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   description?: string;
+  category?: string;
   created_at: string;
 }
 

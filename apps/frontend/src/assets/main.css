@@ -34,18 +34,18 @@
 .modal[open],
 .modal:popover-open,
 .modal:target {
+  display: grid !important;
   pointer-events: auto !important;
   visibility: visible !important;
   opacity: 1 !important;
-  background-color: rgba(4, 7, 13, 0.75) !important;
-  backdrop-filter: blur(8px) !important;
+  background-color: rgba(4, 7, 13, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
 }
 
 .modal.modal-open > .modal-box,
 .modal[open] > .modal-box,
 .modal:popover-open > .modal-box {
   opacity: 1 !important;
-  scale: 100% !important;
+  transform: scale(1) !important;
   pointer-events: auto !important;
-  @apply bg-slate-900 text-slate-100 border border-slate-800 shadow-2xl;
 }

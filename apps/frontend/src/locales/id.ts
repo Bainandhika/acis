@@ -8,7 +8,9 @@ export const id = {
   nav: {
     dashboard: 'Dasbor',
     wallets: 'Dompet',
-    transaksi: 'Transaksi',
+    transactions: 'Transaksi',
+    members: 'Anggota',
+    settings: 'Pengaturan',
     reports: 'Laporan Keuangan',
     botConnected: 'Bot Terhubung',
     botOffline: 'Bot Nonaktif',
