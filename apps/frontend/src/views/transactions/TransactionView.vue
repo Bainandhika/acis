@@ -19,9 +19,10 @@
                     <option value="allocation">Alokasi</option>
                 </select>
             </div>
-            <div>
+            <div v-if="form.type !== 'income'">
                 <label for="transaction-wallet" class="mb-2 block text-sm font-medium text-slate-700">Dompet</label>
-                <select id="transaction-wallet" v-model="form.wallet_id" required class="w-full rounded border p-2">
+                <select id="transaction-wallet" v-model="form.wallet_id" :required="form.type !== 'income'"
+                    class="w-full rounded border p-2">
                     <option value="" disabled>Pilih dompet</option>
                     <option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }}</option>
                 </select>
@@ -66,7 +67,7 @@ import { createTransaction, deleteTransaction, getTransactions, getWallets, upda
 const transactions = ref([]); const wallets = ref([]); const open = ref(false); const error = ref(''); const form = ref({ type: 'expense', wallet_id: '', amount: 0, description: '' })
 const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
 async function load() { const now = new Date(); const [t, w] = await Promise.all([getTransactions(now.getFullYear(), now.getMonth() + 1), getWallets()]); transactions.value = t.data || []; wallets.value = w.data || [] }
-async function save() { try { await createTransaction(form.value); form.value = { type: 'expense', wallet_id: '', amount: 0, description: '' }; open.value = false; await load() } catch (saveError) { error.value = saveError.message } }
+async function save() { try { const payload = form.value.type === 'income' ? { ...form.value, wallet_id: '' } : form.value; await createTransaction(payload); form.value = { type: 'expense', wallet_id: '', amount: 0, description: '' }; open.value = false; await load() } catch (saveError) { error.value = saveError.message } }
 async function edit(transaction) {
     const description = window.prompt('Catatan transaksi', transaction.description || '')
     if (description !== null) {
