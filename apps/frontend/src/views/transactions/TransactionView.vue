@@ -1,4 +1,65 @@
-<template><section><div class="mb-6 flex items-end justify-between"><div><p class="text-sm font-semibold uppercase tracking-widest text-emerald-600">Arus kas</p><h2 class="mt-1 text-3xl font-bold">Transaksi</h2></div><button class="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white" @click="open = true">Tambah transaksi</button></div><form v-if="open" class="mb-5 grid gap-3 rounded-lg bg-white p-5 shadow-sm md:grid-cols-4" @submit.prevent="save"><select v-model="form.type" class="rounded border p-2"><option value="income">Pendapatan</option><option value="expense">Pengeluaran</option><option value="allocation">Alokasi</option></select><select v-model="form.wallet_id" required class="rounded border p-2"><option value="" disabled>Pilih dompet</option><option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }}</option></select><input v-model.number="form.amount" required min="1" type="number" placeholder="Jumlah" class="rounded border p-2"/><input v-model="form.description" placeholder="Catatan" class="rounded border p-2"/><button class="rounded bg-slate-900 p-2 text-white md:col-span-4">Simpan</button></form><p v-if="error" class="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{{ error }}</p><div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"><div v-for="transaction in transactions" :key="transaction.id" class="flex items-center justify-between border-b border-slate-100 p-4 last:border-0"><div><p class="font-medium">{{ transaction.description || 'Transaksi' }}</p><p class="text-xs text-slate-500">{{ new Date(transaction.created_at).toLocaleDateString('id-ID') }}</p></div><div class="flex items-center gap-3"><strong :class="transaction.type === 'expense' ? 'text-red-600' : 'text-emerald-600'">{{ transaction.type === 'expense' ? '-' : '+' }}{{ money(transaction.amount) }}</strong><span class="flex gap-1"><button class="rounded border px-2 py-1 text-xs" @click="edit(transaction)">Edit</button><button class="rounded border border-red-200 px-2 py-1 text-xs text-red-700" @click="remove(transaction.id)">Hapus</button></span></div></div><p v-if="!transactions.length" class="p-8 text-center text-slate-500">Belum ada transaksi.</p></div></section></template>
+<template>
+    <section>
+        <div class="mb-6 flex items-end justify-between">
+            <div>
+                <p class="text-sm font-semibold uppercase tracking-widest text-emerald-600">Arus kas</p>
+                <h2 class="mt-1 text-3xl font-bold">Transaksi</h2>
+            </div>
+            <button type="button" class="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+                @click="open = true">Tambah transaksi</button>
+        </div>
+        <form v-if="open" class="mb-5 grid gap-3 rounded-lg bg-white p-5 shadow-sm md:grid-cols-4"
+            @submit.prevent="save">
+            <div>
+                <label for="transaction-type" class="mb-2 block text-sm font-medium text-slate-700">Jenis
+                    transaksi</label>
+                <select id="transaction-type" v-model="form.type" class="w-full rounded border p-2">
+                    <option value="income">Pendapatan</option>
+                    <option value="expense">Pengeluaran</option>
+                    <option value="allocation">Alokasi</option>
+                </select>
+            </div>
+            <div>
+                <label for="transaction-wallet" class="mb-2 block text-sm font-medium text-slate-700">Dompet</label>
+                <select id="transaction-wallet" v-model="form.wallet_id" required class="w-full rounded border p-2">
+                    <option value="" disabled>Pilih dompet</option>
+                    <option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }}</option>
+                </select>
+            </div>
+            <div>
+                <label for="transaction-amount" class="mb-2 block text-sm font-medium text-slate-700">Jumlah</label>
+                <input id="transaction-amount" v-model.number="form.amount" required min="1" type="number"
+                    placeholder="Jumlah" class="w-full rounded border p-2" />
+            </div>
+            <div>
+                <label for="transaction-description"
+                    class="mb-2 block text-sm font-medium text-slate-700">Catatan</label>
+                <input id="transaction-description" v-model="form.description" placeholder="Catatan"
+                    class="w-full rounded border p-2" />
+            </div>
+            <button type="submit" class="rounded bg-slate-900 p-2 text-white md:col-span-4">Simpan</button>
+        </form>
+        <p v-if="error" class="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
+        <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div v-for="transaction in transactions" :key="transaction.id"
+                class="flex items-center justify-between border-b border-slate-100 p-4 last:border-0">
+                <div>
+                    <p class="font-medium">{{ transaction.description || 'Transaksi' }}</p>
+                    <p class="text-xs text-slate-500">{{ new Date(transaction.created_at).toLocaleDateString('id-ID') }}
+                    </p>
+                </div>
+                <div class="flex items-center gap-3"><strong
+                        :class="transaction.type === 'expense' ? 'text-red-600' : 'text-emerald-600'">{{
+                            transaction.type === 'expense' ? '-' : '+' }}{{ money(transaction.amount) }}</strong><span
+                        class="flex gap-1"><button type="button" class="rounded border px-2 py-1 text-xs"
+                            @click="edit(transaction)">Edit</button><button type="button"
+                            class="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
+                            @click="remove(transaction.id)">Hapus</button></span></div>
+            </div>
+            <p v-if="!transactions.length" class="p-8 text-center text-slate-500">Belum ada transaksi.</p>
+        </div>
+    </section>
+</template>
 <script setup>
 import { onMounted, ref } from 'vue'
 import { createTransaction, deleteTransaction, getTransactions, getWallets, updateTransaction } from '../../services/api'
@@ -6,7 +67,26 @@ const transactions = ref([]); const wallets = ref([]); const open = ref(false); 
 const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
 async function load() { const now = new Date(); const [t, w] = await Promise.all([getTransactions(now.getFullYear(), now.getMonth() + 1), getWallets()]); transactions.value = t.data || []; wallets.value = w.data || [] }
 async function save() { try { await createTransaction(form.value); form.value = { type: 'expense', wallet_id: '', amount: 0, description: '' }; open.value = false; await load() } catch (saveError) { error.value = saveError.message } }
-async function edit(transaction) { const description = window.prompt('Catatan transaksi', transaction.description || ''); if (description === null) return; try { await updateTransaction(transaction.id, { wallet_id: transaction.wallet_id, type: transaction.type, amount: transaction.amount, description }); await load() } catch (editError) { error.value = editError.message } }
-async function remove(id) { if (!window.confirm('Hapus transaksi ini?')) return; try { await deleteTransaction(id); await load() } catch (deleteError) { error.value = deleteError.message } }
+async function edit(transaction) {
+    const description = window.prompt('Catatan transaksi', transaction.description || '')
+    if (description !== null) {
+        try {
+            await updateTransaction(transaction.id, { wallet_id: transaction.wallet_id, type: transaction.type, amount: transaction.amount, description })
+            await load()
+        } catch (editError) {
+            error.value = editError.message
+        }
+    }
+}
+async function remove(id) {
+    if (window.confirm('Hapus transaksi ini?')) {
+        try {
+            await deleteTransaction(id)
+            await load()
+        } catch (deleteError) {
+            error.value = deleteError.message
+        }
+    }
+}
 onMounted(load)
 </script>
