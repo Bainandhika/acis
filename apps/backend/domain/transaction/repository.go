@@ -44,9 +44,9 @@ func NewRepository(db *database.AppDB) TransactionRepository {
 }
 
 func (r *txRepoImpl) CreateTransaction(ctx context.Context, exec DBExecutor, tx *Transaction) error {
-	query := `INSERT INTO transactions (id, wallet_id, created_by, type, amount, description) 
-			  VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at`
-	return exec.QueryRowContext(ctx, query, tx.ID, tx.WalletID, tx.CreatedBy, tx.Type, tx.Amount, tx.Description).Scan(&tx.CreatedAt)
+	query := `INSERT INTO transactions (id, wallet_id, family_id, created_by, type, amount, description) 
+			  VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, $6, $7) RETURNING created_at`
+	return exec.QueryRowContext(ctx, query, tx.ID, tx.WalletID, tx.FamilyID, tx.CreatedBy, tx.Type, tx.Amount, tx.Description).Scan(&tx.CreatedAt)
 }
 
 func (r *txRepoImpl) GetTransactionsByFamilyID(ctx context.Context, familyID string) ([]Transaction, error) {
@@ -58,19 +58,19 @@ func (r *txRepoImpl) GetTransactionsByFamilyIDAndPeriod(ctx context.Context, fam
 	var args []interface{}
 
 	if year > 0 && month > 0 {
-		query = `SELECT t.id, t.wallet_id, t.created_by, t.type, t.amount, t.description, t.created_at
+		query = `SELECT t.id, COALESCE(t.wallet_id::text, ''), t.family_id, t.created_by, t.type, t.amount, t.description, t.created_at
 				 FROM transactions t
-				 JOIN wallets w ON t.wallet_id = w.id
-				 WHERE w.family_id = $1 
+				 LEFT JOIN wallets w ON t.wallet_id = w.id
+				 WHERE COALESCE(t.family_id, w.family_id) = $1 
 				   AND EXTRACT(YEAR FROM t.created_at) = $2
 				   AND EXTRACT(MONTH FROM t.created_at) = $3
 				 ORDER BY t.created_at DESC`
 		args = []interface{}{familyID, year, month}
 	} else {
-		query = `SELECT t.id, t.wallet_id, t.created_by, t.type, t.amount, t.description, t.created_at
+		query = `SELECT t.id, COALESCE(t.wallet_id::text, ''), t.family_id, t.created_by, t.type, t.amount, t.description, t.created_at
 				 FROM transactions t
-				 JOIN wallets w ON t.wallet_id = w.id
-				 WHERE w.family_id = $1 
+				 LEFT JOIN wallets w ON t.wallet_id = w.id
+				 WHERE COALESCE(t.family_id, w.family_id) = $1 
 				 ORDER BY t.created_at DESC`
 		args = []interface{}{familyID}
 	}
@@ -81,7 +81,7 @@ func (r *txRepoImpl) GetTransactionsByFamilyIDAndPeriod(ctx context.Context, fam
 }
 
 func (r *txRepoImpl) GetTransactionByID(ctx context.Context, txID string) (*Transaction, error) {
-	query := `SELECT id, wallet_id, created_by, type, amount, description, created_at 
+	query := `SELECT id, COALESCE(wallet_id::text, ''), family_id, created_by, type, amount, description, created_at 
 			  FROM transactions WHERE id = $1`
 	var tx Transaction
 	err := r.db.GetContext(ctx, &tx, query, txID)
