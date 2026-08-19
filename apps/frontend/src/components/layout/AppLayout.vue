@@ -2,11 +2,16 @@
     <div class="min-h-screen bg-slate-100 text-slate-800">
         <header class="bg-slate-900 text-white px-6 py-4 shadow">
             <div class="mx-auto flex max-w-6xl items-center justify-between">
-                <div class="flex items-center gap-6">
-                    <h1 class="text-xl font-semibold">ACIS</h1>
-                    <nav class="hidden gap-4 text-sm md:flex"><router-link to="/">Ringkasan</router-link><router-link
-                            to="/transaksi">Transaksi</router-link><router-link
-                            to="/proposal">Proposal</router-link><router-link to="/keluarga">Keluarga</router-link>
+                <div class="flex items-center gap-4">
+                    <div
+                        class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
+                        <img :src="logo" alt="ACIS logo" class="h-8 w-8 object-contain" />
+                    </div>
+                    <nav class="hidden gap-4 text-sm md:flex">
+                        <router-link to="/">Ringkasan</router-link>
+                        <router-link to="/transaksi">Transaksi</router-link>
+                        <router-link to="/proposal">Proposal</router-link>
+                        <router-link to="/keluarga">Keluarga</router-link>
                     </nav>
                 </div>
                 <button type="button"
@@ -26,6 +31,7 @@
 <script setup>
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useRouter } from 'vue-router'
+import logo from '../../assets/logo-acis.png'
 
 const router = useRouter()
 const authStore = useAuthStore()
