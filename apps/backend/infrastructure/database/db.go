@@ -137,13 +137,17 @@ func UserAuthFromContext(ctx context.Context) (UserAuthInfo, bool) {
 	return UserAuthInfo{}, false
 }
 
-// WithUserContext runs fn in a transaction scoped to the authenticated user.
-// set_config(..., true) and SET LOCAL ROLE are transaction-scoped: they activate
-// Supabase RLS (auth.uid()) for every query inside fn and vanish on commit/rollback.
-// The authenticated user is resolved from context.Context.
 func (db *AppDB) WithUserContext(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
-	info, ok := UserAuthFromContext(ctx)
-	if !ok || info.UserID == "" {
+	userID, _ := ctx.Value("auth_user_id").(string)
+	email, _ := ctx.Value("auth_user_email").(string)
+	if userID == "" {
+		// Fallback to legacy key or struct info
+		if info, ok := UserAuthFromContext(ctx); ok {
+			userID = info.UserID
+			email = info.Email
+		}
+	}
+	if userID == "" {
 		return fmt.Errorf("authenticated user context is required for database operations")
 	}
 
@@ -155,9 +159,9 @@ func (db *AppDB) WithUserContext(ctx context.Context, fn func(tx *sqlx.Tx) error
 	defer func() { _ = tx.Rollback() }() // no-op after successful commit
 
 	claims, err := json.Marshal(map[string]string{
-		"sub":   info.UserID,
+		"sub":   userID,
 		"role":  "authenticated",
-		"email": info.Email,
+		"email": email,
 		"aud":   "authenticated",
 	})
 	if err != nil {

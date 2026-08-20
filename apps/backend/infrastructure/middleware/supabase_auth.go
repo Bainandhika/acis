@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/gin-gonic/gin"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -88,20 +87,18 @@ func (m *SupabaseAuthMiddleware) Handler() gin.HandlerFunc {
 			}
 		}
 
+		// Inject into standard context.Context for the database layer to extract
+		reqCtx := c.Request.Context()
+		reqCtx = context.WithValue(reqCtx, "auth_user_id", userID)
+		reqCtx = context.WithValue(reqCtx, "auth_user_email", email)
+		c.Request = c.Request.WithContext(reqCtx)
+
 		c.Set("auth_user_id", userID)
 		c.Set("auth_user_email", email)
 
 		// Set legacy keys as fallback compatibility during migration
 		c.Set("user_id", userID)
 		c.Set("user_email", email)
-
-		// Inject into standard request context for RLS / database propagation
-		reqCtx := database.WithUserAuthContext(c.Request.Context(), userID, email)
-		reqCtx = context.WithValue(reqCtx, "auth_user_id", userID)
-		reqCtx = context.WithValue(reqCtx, "auth_user_email", email)
-		reqCtx = context.WithValue(reqCtx, "user_id", userID)
-		reqCtx = context.WithValue(reqCtx, "user_email", email)
-		c.Request = c.Request.WithContext(reqCtx)
 
 		c.Next()
 	}
