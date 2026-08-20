@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -12,9 +13,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// AppDB wraps sqlx.DB to add custom logging with trace ID
+// AppDB wraps sqlx.DB to add custom logging with trace ID and dual pool management
 type AppDB struct {
 	*sqlx.DB
+	userDB  *sqlx.DB
+	adminDB *sqlx.DB
 }
 
 func NewConnection(dsn string) (*AppDB, error) {
@@ -34,11 +37,95 @@ func NewConnection(dsn string) (*AppDB, error) {
 
 	log.Println("Database connection pool initialized successfully")
 
-	return &AppDB{DB: db}, nil
+	return &AppDB{DB: db, userDB: db, adminDB: db}, nil
+}
+
+// NewDualPool initializes both userDB (app role subject to RLS) and adminDB (service role bypassing RLS).
+func NewDualPool(appDSN, adminDSN string) (*AppDB, error) {
+	userConn, err := sqlx.Connect("postgres", appDSN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to user database pool: %w", err)
+	}
+	userConn.SetMaxOpenConns(25)
+	userConn.SetMaxIdleConns(10)
+	userConn.SetConnMaxLifetime(5 * time.Minute)
+	userConn.SetConnMaxIdleTime(2 * time.Minute)
+	if err := userConn.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping user database: %w", err)
+	}
+
+	adminConn, err := sqlx.Connect("postgres", adminDSN)
+	if err != nil {
+		_ = userConn.Close()
+		return nil, fmt.Errorf("failed to connect to admin database pool: %w", err)
+	}
+	adminConn.SetMaxOpenConns(10)
+	adminConn.SetMaxIdleConns(5)
+	adminConn.SetConnMaxLifetime(5 * time.Minute)
+	adminConn.SetConnMaxIdleTime(2 * time.Minute)
+	if err := adminConn.Ping(); err != nil {
+		_ = userConn.Close()
+		return nil, fmt.Errorf("failed to ping admin database: %w", err)
+	}
+
+	log.Println("Dual database connection pools (userDB & adminDB) initialized successfully")
+
+	return &AppDB{
+		DB:      userConn,
+		userDB:  userConn,
+		adminDB: adminConn,
+	}, nil
+}
+
+func (db *AppDB) UserDB() *sqlx.DB {
+	if db.userDB != nil {
+		return db.userDB
+	}
+	return db.DB
+}
+
+func (db *AppDB) AdminDB() *sqlx.DB {
+	if db.adminDB != nil {
+		return db.adminDB
+	}
+	return db.DB
+}
+
+// WithUserContext runs fn in a transaction scoped to the authenticated user.
+// set_config(..., true) and SET LOCAL ROLE are transaction-scoped: they activate
+// Supabase RLS (auth.uid()) for every query inside fn and vanish on commit/rollback.
+func (db *AppDB) WithUserContext(ctx context.Context, userID, email string, fn func(tx *sqlx.Tx) error) error {
+	pool := db.UserDB()
+	tx, err := pool.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // no-op after successful commit
+
+	claims, err := json.Marshal(map[string]string{
+		"sub":   userID,
+		"role":  "authenticated",
+		"email": email,
+		"aud":   "authenticated",
+	})
+	if err != nil {
+		return err
+	}
+	// Parameterized: never string-concatenate JWT data into SQL (OWASP A03).
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('request.jwt.claims', $1, true)`, string(claims)); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `SET LOCAL ROLE authenticated`); err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func NewAppDB(db *sqlx.DB) *AppDB {
-	return &AppDB{DB: db}
+	return &AppDB{DB: db, userDB: db, adminDB: db}
 }
 
 func logExecution(ctx context.Context, query string, duration time.Duration, err error) {
