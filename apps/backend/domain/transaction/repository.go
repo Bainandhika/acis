@@ -14,11 +14,6 @@ type DBExecutor interface {
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
 
-type FamilyBalanceRecord struct {
-	ID             string  `db:"id"`
-	PrimaryBalance float64 `db:"primary_balance"`
-}
-
 type TransactionRepository interface {
 	CreateTransaction(ctx context.Context, exec DBExecutor, tx *Transaction) error
 	GetTransactionsByFamilyID(ctx context.Context, familyID string) ([]Transaction, error)
@@ -31,8 +26,6 @@ type TransactionRepository interface {
 	GetProposalForUpdate(ctx context.Context, exec DBExecutor, proposalID string) (*Proposal, error)
 	GetWalletForUpdate(ctx context.Context, exec DBExecutor, walletID string) (*Wallet, error)
 	UpdateWalletBalance(ctx context.Context, exec DBExecutor, walletID string, newBalance float64) error
-	GetFamilyForUpdate(ctx context.Context, exec DBExecutor, familyID string) (*FamilyBalanceRecord, error)
-	UpdateFamilyPrimaryBalance(ctx context.Context, exec DBExecutor, familyID string, newBalance float64) error
 	UpdateProposalStatus(ctx context.Context, exec DBExecutor, proposalID, status, reviewerID string) error
 }
 
@@ -171,21 +164,5 @@ func (r *txRepoImpl) UpdateWalletBalance(ctx context.Context, exec DBExecutor, w
 func (r *txRepoImpl) UpdateProposalStatus(ctx context.Context, exec DBExecutor, proposalID, status, reviewerID string) error {
 	query := `UPDATE proposals SET status = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW() WHERE id = $3`
 	_, err := exec.ExecContext(ctx, query, status, reviewerID, proposalID)
-	return err
-}
-
-func (r *txRepoImpl) GetFamilyForUpdate(ctx context.Context, exec DBExecutor, familyID string) (*FamilyBalanceRecord, error) {
-	query := `SELECT id, primary_balance FROM families WHERE id = $1 FOR UPDATE`
-	var f FamilyBalanceRecord
-	err := exec.QueryRowContext(ctx, query, familyID).Scan(&f.ID, &f.PrimaryBalance)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	return &f, err
-}
-
-func (r *txRepoImpl) UpdateFamilyPrimaryBalance(ctx context.Context, exec DBExecutor, familyID string, newBalance float64) error {
-	query := `UPDATE families SET primary_balance = $1, updated_at = NOW() WHERE id = $2`
-	_, err := exec.ExecContext(ctx, query, newBalance, familyID)
 	return err
 }
