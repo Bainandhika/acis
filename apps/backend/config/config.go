@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"regexp"
-	"strings"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -98,7 +97,7 @@ func expandEnv(s string) string {
 }
 
 // Load reads .env and acis-config.yaml, expanding environment variables
-func Load(configPath string) *Config {
+func Load(configPath string) (*Config, error) {
 	if err := godotenv.Load(".env"); err != nil {
 		log.Println("Notice: .env file not found or skipped, using system environment variables")
 	}
@@ -109,136 +108,112 @@ func Load(configPath string) *Config {
 
 	content, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Printf("Warning: Failed to read %s (%v), using default settings", configPath, err)
-		return defaultFallback()
+		return nil, fmt.Errorf("Warning: Failed to read %s (%v)", configPath, err)
 	}
 
 	expandedContent := expandEnv(string(content))
 
 	var cfg Config
 	if err := yaml.Unmarshal([]byte(expandedContent), &cfg); err != nil {
-		log.Printf("Warning: Failed to parse YAML config (%v), using fallback", err)
-		return defaultFallback()
+		return nil, fmt.Errorf("Warning: Failed to parse YAML config (%v)", err)
 	}
 
-	// Environment variable overrides / fallbacks
-	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
-		cfg.Database.URL = dbURL
-	}
-	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
-		cfg.Redis.URL = redisURL
-	}
-	if tgToken := os.Getenv("TELEGRAM_BOT_TOKEN"); tgToken != "" {
-		cfg.Telegram.BotToken = tgToken
-	}
-	if tgSecret := os.Getenv("TELEGRAM_WEBHOOK_SECRET"); tgSecret != "" {
-		cfg.Telegram.WebhookSecret = tgSecret
-	}
-	if tgUsername := os.Getenv("TELEGRAM_BOT_USERNAME"); tgUsername != "" {
-		cfg.Telegram.BotUsername = tgUsername
-	}
-	if botSecret := os.Getenv("BOT_INTERNAL_SECRET"); botSecret != "" {
-		cfg.Bot.Secret = botSecret
-	}
-	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
-		origins := strings.Split(corsEnv, ",")
-		for i := range origins {
-			origins[i] = strings.TrimSpace(origins[i])
-		}
-		cfg.CORS.AllowedOrigins = origins
-	}
-	if len(cfg.CORS.AllowedOrigins) == 0 {
-		cfg.CORS.AllowedOrigins = []string{"http://localhost:5173"}
-	}
+	// // Environment variable overrides / fallbacks
+	// if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+	// 	cfg.Database.URL = dbURL
+	// }
+	// if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+	// 	cfg.Redis.URL = redisURL
+	// }
+	// if tgToken := os.Getenv("TELEGRAM_BOT_TOKEN"); tgToken != "" {
+	// 	cfg.Telegram.BotToken = tgToken
+	// }
+	// if tgSecret := os.Getenv("TELEGRAM_WEBHOOK_SECRET"); tgSecret != "" {
+	// 	cfg.Telegram.WebhookSecret = tgSecret
+	// }
+	// if tgUsername := os.Getenv("TELEGRAM_BOT_USERNAME"); tgUsername != "" {
+	// 	cfg.Telegram.BotUsername = tgUsername
+	// }
+	// if botSecret := os.Getenv("BOT_INTERNAL_SECRET"); botSecret != "" {
+	// 	cfg.Bot.Secret = botSecret
+	// }
+	// if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
+	// 	origins := strings.Split(corsEnv, ",")
+	// 	for i := range origins {
+	// 		origins[i] = strings.TrimSpace(origins[i])
+	// 	}
+	// 	cfg.CORS.AllowedOrigins = origins
+	// }
+	// if len(cfg.CORS.AllowedOrigins) == 0 {
+	// 	cfg.CORS.AllowedOrigins = []string{"http://localhost:5173"}
+	// }
 
-	return &cfg
+	return &cfg, nil
 }
 
-func defaultFallback() *Config {
-	allowedOrigins := []string{"http://localhost:5173"}
-	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
-		origins := strings.Split(corsEnv, ",")
-		for i := range origins {
-			origins[i] = strings.TrimSpace(origins[i])
-		}
-		allowedOrigins = origins
-	}
+// func defaultFallback() *Config {
+// 	allowedOrigins := []string{"http://localhost:5173"}
+// 	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
+// 		origins := strings.Split(corsEnv, ",")
+// 		for i := range origins {
+// 			origins[i] = strings.TrimSpace(origins[i])
+// 		}
+// 		allowedOrigins = origins
+// 	}
 
-	return &Config{
-		Server: ServerConfig{
-			Port: os.Getenv("PORT"),
-			Mode: os.Getenv("GIN_MODE"),
-		},
-		Database: DatabaseConfig{
-			URL:      os.Getenv("DATABASE_URL"),
-			Host:     os.Getenv("DB_HOST"),
-			Port:     os.Getenv("DB_PORT"),
-			User:     os.Getenv("DB_USER"),
-			Password: os.Getenv("DB_PASSWORD"),
-			Name:     os.Getenv("DB_NAME"),
-			SSLMode:  "disable",
-			TimeZone: "Asia/Jakarta",
-		},
-		JWT: JWTConfig{
-			Secret: os.Getenv("JWT_SECRET"),
-			Expiry: "24h",
-		},
-		Log: LogConfig{
-			Dir:   "./logs",
-			Level: "info",
-		},
-		Redis: RedisConfig{
-			URL:      os.Getenv("REDIS_URL"),
-			Host:     "localhost",
-			Port:     "6379",
-			Password: os.Getenv("REDIS_PASSWORD"),
-			DB:       0,
-		},
-		OTP: OTPConfig{
-			TTL:           "5m",
-			EncryptionKey: os.Getenv("OTP_ENCRYPTION_KEY"),
-		},
-		Telegram: TelegramConfig{
-			BotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
-			WebhookSecret: os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
-			BotUsername:   os.Getenv("TELEGRAM_BOT_USERNAME"),
-		},
-		CORS: CORSConfig{
-			AllowedOrigins: allowedOrigins,
-		},
-	}
-}
+// 	return &Config{
+// 		Server: ServerConfig{
+// 			Port: os.Getenv("PORT"),
+// 			Mode: os.Getenv("GIN_MODE"),
+// 		},
+// 		Database: DatabaseConfig{
+// 			URL:      os.Getenv("DATABASE_URL"),
+// 			Host:     os.Getenv("DB_HOST"),
+// 			Port:     os.Getenv("DB_PORT"),
+// 			User:     os.Getenv("DB_USER"),
+// 			Password: os.Getenv("DB_PASSWORD"),
+// 			Name:     os.Getenv("DB_NAME"),
+// 			SSLMode:  "disable",
+// 			TimeZone: "Asia/Jakarta",
+// 		},
+// 		JWT: JWTConfig{
+// 			Secret: os.Getenv("JWT_SECRET"),
+// 			Expiry: "24h",
+// 		},
+// 		Log: LogConfig{
+// 			Dir:   "./logs",
+// 			Level: "info",
+// 		},
+// 		Redis: RedisConfig{
+// 			URL:      os.Getenv("REDIS_URL"),
+// 			Host:     "localhost",
+// 			Port:     "6379",
+// 			Password: os.Getenv("REDIS_PASSWORD"),
+// 			DB:       0,
+// 		},
+// 		OTP: OTPConfig{
+// 			TTL:           "5m",
+// 			EncryptionKey: os.Getenv("OTP_ENCRYPTION_KEY"),
+// 		},
+// 		Telegram: TelegramConfig{
+// 			BotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
+// 			WebhookSecret: os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
+// 			BotUsername:   os.Getenv("TELEGRAM_BOT_USERNAME"),
+// 		},
+// 		CORS: CORSConfig{
+// 			AllowedOrigins: allowedOrigins,
+// 		},
+// 	}
+// }
 
 // DSN returns Data Source Name string for database connection
 func (c *Config) DSN() string {
-	if c.Database.URL != "" {
-		return c.Database.URL
-	}
-
 	host := c.Database.Host
-	if host == "" {
-		host = "localhost"
-	}
 	port := c.Database.Port
-	if port == "" {
-		port = "5432"
-	}
 	user := c.Database.User
-	if user == "" {
-		user = "acis_user"
-	}
 	name := c.Database.Name
-	if name == "" {
-		name = "acis_db"
-	}
 	sslMode := c.Database.SSLMode
-	if sslMode == "" {
-		sslMode = "disable"
-	}
 	tz := c.Database.TimeZone
-	if tz == "" {
-		tz = "Asia/Jakarta"
-	}
 
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
