@@ -68,8 +68,7 @@
                 <p v-if="error" class="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</p>
                 <button type="submit" :disabled="loading || otp.length !== 6"
                     class="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-                    {{ loading ? 'Memverifikasi...' : authMode === 'register' ? 'Verifikasi & Daftar' : 'Verifikasi &
-                    Masuk' }}
+                    {{ getVerifyButtonLabel() }}
                 </button>
                 <button type="button" :disabled="loading" class="w-full text-sm text-slate-500 hover:text-slate-800"
                     @click="reset">
@@ -170,6 +169,11 @@ async function handleVerifyOtp() {
     } finally {
         loading.value = false
     }
+}
+
+function getVerifyButtonLabel() {
+    if (loading.value) return 'Memverifikasi...'
+    return authMode.value === 'register' ? 'Verifikasi & Daftar' : 'Verifikasi & Masuk'
 }
 
 function reset() {
