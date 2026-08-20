@@ -73,14 +73,19 @@
                         <button type="submit" class="w-full rounded bg-slate-900 p-2 text-white">Simpan</button>
                     </div>
                 </form>
-                <div v-for="item in wallets" :key="item.id" class="mt-4 flex justify-between border-b pb-3">
+                <div v-for="item in wallets" :key="item.id"
+                    class="mt-4 flex items-center justify-between border-b pb-3">
                     <span><strong>{{ item.short_id }} · {{ item.name }}</strong><small
                             class="block text-slate-500">Batas minimum {{ money(item.minimum_limit) }}</small></span>
-                    <div class="flex items-center gap-3"><strong>{{ money(item.current_balance) }}</strong><span
-                            v-if="isAdmin" class="flex gap-1"><button type="button"
-                                class="rounded border px-2 py-1 text-xs" @click="editWallet(item)">Edit</button><button
-                                type="button" class="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
-                                @click="removeWallet(item.id)">Hapus</button></span></div>
+                    <div class="flex items-center gap-3">
+                        <strong>{{ money(item.current_balance) }}</strong>
+                        <span v-if="isAdmin" class="flex gap-1">
+                            <button type="button" class="rounded border px-2 py-1 text-xs"
+                                @click="editWallet(item)">Edit</button>
+                            <button type="button" class="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
+                                @click="removeWallet(item.id)">Hapus</button>
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -94,31 +99,88 @@
             <div v-for="member in family.members || []" :key="member.id"
                 class="mt-3 flex items-center justify-between border-b pb-2">
                 <span>{{ member.user_name || member.user_id }} <small class="text-slate-500">({{ member.role
-                        }})</small></span>
+                }})</small></span>
                 <button v-if="member.user_id !== authStore.user?.id" type="button"
                     class="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
                     @click="removeMemberFromFamily(member.id)">Keluarkan</button>
+            </div>
+        </div>
+
+        <div v-if="walletEditor.open" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold">Edit dompet</h3>
+                    <button type="button" class="text-sm text-slate-500" @click="closeWalletEditor">Tutup</button>
+                </div>
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-slate-700">Nama dompet</label>
+                        <input v-model="walletEditor.name" class="w-full rounded border p-2" />
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-slate-700">Nominal dompet</label>
+                        <input v-model.number="walletEditor.current_balance" type="number" min="0"
+                            class="w-full rounded border p-2" />
+                    </div>
+                </div>
+                <div class="mt-5 flex justify-end gap-2">
+                    <button type="button" class="rounded border px-3 py-2 text-sm"
+                        @click="closeWalletEditor">Batal</button>
+                    <button type="button" class="rounded bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+                        @click="saveWalletEdit">Simpan</button>
+                </div>
             </div>
         </div>
     </section>
 </template>
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { createFamily, createWallet, deleteWallet, disconnectTelegram, getFamily, getWallets, joinFamily, removeMember, updateFamily, updateFamilySettings, updateWallet } from '../../services/api'
+import { createFamily, createWallet, deleteWallet, disconnectTelegram, getFamily, getTransactions, getWallets, joinFamily, removeMember, updateFamily, updateFamilySettings, updateWallet } from '../../services/api'
 import { useAuthStore } from '../../stores/useAuthStore'
-const authStore = useAuthStore(); const family = ref(null); const wallets = ref([]); const error = ref(''); const loading = ref(true); const walletOpen = ref(false); const inviteCode = ref(''); const form = ref({ name: '', monthly_income: 0 }); const wallet = ref({ name: '', initial_balance: 0, minimum_limit: 0 })
+
+const authStore = useAuthStore();
+const family = ref(null);
+const wallets = ref([]);
+const transactions = ref([]);
+const error = ref('');
+const loading = ref(true);
+const walletOpen = ref(false);
+const inviteCode = ref('');
+const form = ref({ name: '', monthly_income: 0 });
+const wallet = ref({ name: '', initial_balance: 0, minimum_limit: 0 });
+const walletEditor = ref({ open: false, wallet: null, name: '', current_balance: 0 });
+
 const isAdmin = computed(() => authStore.user?.role === 'admin' || family.value?.members?.some(member => member.user_id === authStore.user?.id && member.role === 'admin'))
+const totalWalletBalance = computed(() => wallets.value.reduce((sum, item) => sum + Number(item.current_balance || 0), 0))
+const incomeThisMonth = computed(() => transactions.value.filter(item => item.type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0))
+const walletLimit = computed(() => Number(family.value?.monthly_income ?? incomeThisMonth.value ?? 0))
 const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
+
+function validateWalletTotal(nextTotal) {
+    if (nextTotal > walletLimit.value) {
+        error.value = 'Jumlah nominal semua dompet tidak boleh melebihi nominal pendapatan bulanan keluarga.'
+        return false
+    }
+    error.value = ''
+    return true
+}
+
 async function load() {
     loading.value = true
     try {
-        const f = await getFamily();
+        const now = new Date();
+        const [f, w, t] = await Promise.all([
+            getFamily(),
+            getWallets(),
+            getTransactions(now.getFullYear(), now.getMonth() + 1)
+        ]);
+
         family.value = f.data
+        wallets.value = w.data || []
+        transactions.value = t.data || []
 
         if (family.value) {
-            const w = await getWallets();
             form.value = { name: f.data.name, monthly_income: f.data.monthly_income }
-            wallets.value = w.data || []
         }
     } catch (loadError) {
         error.value = loadError.message
@@ -126,30 +188,73 @@ async function load() {
         loading.value = false
     }
 }
+
 async function setup(mode) { try { await (mode === 'create' ? createFamily({ name: form.value.name, monthly_income: form.value.monthly_income }) : joinFamily({ invite_code: inviteCode.value.toUpperCase() })); await load() } catch (setupError) { error.value = setupError.message } }
 async function saveFamily() { try { await updateFamily({ name: form.value.name }); await updateFamilySettings({ monthly_income: form.value.monthly_income }); await load() } catch (saveError) { error.value = saveError.message } }
-async function saveWallet() { try { await createWallet(wallet.value); wallet.value = { name: '', initial_balance: 0, minimum_limit: 0 }; walletOpen.value = false; await load() } catch (saveError) { error.value = saveError.message } }
-async function editWallet(item) {
-    const name = window.prompt('Nama dompet', item.name)
-    if (name && name !== item.name) {
-        try {
-            await updateWallet(item.id, { name, minimum_limit: item.minimum_limit })
-            await load()
-        } catch (saveError) {
-            error.value = saveError.message
-        }
+async function saveWallet() {
+    const nextTotal = totalWalletBalance.value + Number(wallet.value.initial_balance || 0)
+    if (!validateWalletTotal(nextTotal)) {
+        return
+    }
+
+    try {
+        await createWallet(wallet.value)
+        wallet.value = { name: '', initial_balance: 0, minimum_limit: 0 }
+        walletOpen.value = false
+        await load()
+    } catch (saveError) {
+        error.value = saveError.message
     }
 }
+
+function closeWalletEditor() {
+    walletEditor.value = { open: false, wallet: null, name: '', current_balance: 0 }
+}
+
+function editWallet(item) {
+    walletEditor.value = {
+        open: true,
+        wallet: item,
+        name: item.name,
+        current_balance: Number(item.current_balance || 0)
+    }
+}
+
+async function saveWalletEdit() {
+    if (!walletEditor.value.wallet) return
+
+    const oldBalance = Number(walletEditor.value.wallet.current_balance || 0)
+    const newBalance = Number(walletEditor.value.current_balance || 0)
+    const nextTotal = totalWalletBalance.value - oldBalance + newBalance
+    if (!validateWalletTotal(nextTotal)) return
+
+    try {
+        const payload = {
+            name: walletEditor.value.name.trim(),
+            current_balance: newBalance,
+            minimum_limit: Number(walletEditor.value.wallet.minimum_limit || 0)
+        }
+
+        await updateWallet(walletEditor.value.wallet.id, payload)
+        await load()
+        closeWalletEditor()
+    } catch (saveError) {
+        error.value = saveError.message
+    }
+}
+
 async function removeWallet(id) {
-    if (window.confirm('Hapus dompet ini?')) {
-        try {
-            await deleteWallet(id)
-            await load()
-        } catch (deleteError) {
-            error.value = deleteError.message
-        }
+    if (!window.confirm('Hapus dompet ini?')) return
+
+    try {
+        await deleteWallet(id)
+        wallets.value = wallets.value.filter(item => item.id !== id)
+        error.value = ''
+    } catch (deleteError) {
+        error.value = deleteError.message
     }
 }
+
 async function removeMemberFromFamily(id) {
     if (window.confirm('Keluarkan anggota ini?')) {
         try {
@@ -160,6 +265,7 @@ async function removeMemberFromFamily(id) {
         }
     }
 }
+
 async function disconnect() {
     if (window.confirm('Putuskan koneksi Telegram?')) {
         try {
@@ -170,5 +276,6 @@ async function disconnect() {
         }
     }
 }
+
 onMounted(load)
 </script>
