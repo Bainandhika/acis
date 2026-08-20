@@ -282,6 +282,9 @@ func (s *familyService) CreateWallet(ctx context.Context, userID, familyID strin
 	if err != nil || fam == nil {
 		return nil, errors.New("family not found")
 	}
+	if req.InitialBalance < 0 {
+		return nil, errors.New("wallet balance cannot be negative")
+	}
 
 	shortID := fmt.Sprintf("%s-%d", fam.InviteCode, counter)
 
@@ -323,8 +326,11 @@ func (s *familyService) UpdateWallet(ctx context.Context, walletID, familyID str
 	if wallet.FamilyID != familyID {
 		return nil, errors.New("unauthorized wallet update")
 	}
+	if req.CurrentBalance < 0 {
+		return nil, errors.New("wallet balance cannot be negative")
+	}
 
-	if err := s.repo.UpdateWallet(ctx, walletID, req.Name, req.Description, req.MinimumLimit); err != nil {
+	if err := s.repo.UpdateWallet(ctx, walletID, req.Name, req.Description, req.CurrentBalance, req.MinimumLimit); err != nil {
 		slog.Error("Failed to update wallet", slog.Any("error", err))
 		return nil, errors.New("failed to update wallet")
 	}
