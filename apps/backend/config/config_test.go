@@ -39,7 +39,10 @@ telegram:
 		t.Fatalf("failed to write temp config file: %v", err)
 	}
 
-	cfg := Load(yamlFile)
+	cfg, err := Load(yamlFile)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
 	if cfg.Server.Port != "9090" {
 		t.Errorf("expected Server.Port 9090, got %s", cfg.Server.Port)
 	}
@@ -71,13 +74,20 @@ func TestLoadConfig_TelegramEnv(t *testing.T) {
 	yamlFile := filepath.Join(tmpDir, "acis-config.yaml")
 
 	content := `server:
-  port: "8080"`
+  port: "8080"
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN:}"
+  webhook_secret: "${TELEGRAM_WEBHOOK_SECRET:}"
+  bot_username: "${TELEGRAM_BOT_USERNAME:}"`
 
 	if err := os.WriteFile(yamlFile, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write temp config file: %v", err)
 	}
 
-	cfg := Load(yamlFile)
+	cfg, err := Load(yamlFile)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
 	if cfg.Telegram.BotToken != "env_token_123" {
 		t.Errorf("expected Telegram.BotToken 'env_token_123', got %s", cfg.Telegram.BotToken)
 	}
