@@ -11,7 +11,10 @@ import (
 
 func main() {
 	// 1. Load Modular Configuration (acis-config.yaml + .env secrets)
-	cfg := config.Load("acis-config.yaml")
+	cfg, err := config.Load("acis-config.yaml")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	// 2. Initialize Global Logger with YAML log level & monthly rotation
 	logger.Init(cfg.Log.Dir, cfg.Log.Level)
