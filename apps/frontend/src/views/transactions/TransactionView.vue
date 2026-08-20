@@ -16,23 +16,40 @@
                 <select id="transaction-type" v-model="form.type" class="w-full rounded border p-2">
                     <option value="income">Pendapatan</option>
                     <option value="expense">Pengeluaran</option>
-                    <option value="allocation">Alokasi</option>
+                    <option value="allocation">Alokasi Antar Dompet</option>
                 </select>
             </div>
-            <div v-if="form.type !== 'income'">
-                <label for="transaction-wallet" class="mb-2 block text-sm font-medium text-slate-700">Dompet</label>
-                <select id="transaction-wallet" v-model="form.wallet_id" :required="form.type !== 'income'"
-                    class="w-full rounded border p-2">
+            <div v-if="form.type !== 'allocation'">
+                <label for="transaction-wallet" class="mb-2 block text-sm font-medium text-slate-700">
+                    {{ form.type === 'income' ? 'Dompet Tujuan' : 'Dompet' }}
+                </label>
+                <select id="transaction-wallet" v-model="form.wallet_id" required class="w-full rounded border p-2">
                     <option value="" disabled>Pilih dompet</option>
-                    <option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }}</option>
+                    <option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }} ({{ money(wallet.current_balance) }})</option>
                 </select>
             </div>
+            <template v-else>
+                <div>
+                    <label for="source-wallet" class="mb-2 block text-sm font-medium text-slate-700">Dompet Asal</label>
+                    <select id="source-wallet" v-model="form.wallet_id" required class="w-full rounded border p-2">
+                        <option value="" disabled>Pilih dompet asal</option>
+                        <option v-for="wallet in wallets" :key="wallet.id" :value="wallet.id">{{ wallet.name }} ({{ money(wallet.current_balance) }})</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="target-wallet" class="mb-2 block text-sm font-medium text-slate-700">Dompet Tujuan</label>
+                    <select id="target-wallet" v-model="form.target_wallet_id" required class="w-full rounded border p-2">
+                        <option value="" disabled>Pilih dompet tujuan</option>
+                        <option v-for="wallet in wallets.filter(w => w.id !== form.wallet_id)" :key="wallet.id" :value="wallet.id">{{ wallet.name }} ({{ money(wallet.current_balance) }})</option>
+                    </select>
+                </div>
+            </template>
             <div>
                 <label for="transaction-amount" class="mb-2 block text-sm font-medium text-slate-700">Jumlah</label>
                 <input id="transaction-amount" v-model.number="form.amount" required min="1" type="number"
                     placeholder="Jumlah" class="w-full rounded border p-2" />
             </div>
-            <div>
+            <div :class="form.type === 'allocation' ? 'md:col-span-4' : 'md:col-span-4'">
                 <label for="transaction-description"
                     class="mb-2 block text-sm font-medium text-slate-700">Catatan</label>
                 <input id="transaction-description" v-model="form.description" placeholder="Catatan"
@@ -49,13 +66,18 @@
                     <p class="text-xs text-slate-500">{{ new Date(transaction.created_at).toLocaleDateString('id-ID') }}
                     </p>
                 </div>
-                <div class="flex items-center gap-3"><strong
-                        :class="transaction.type === 'expense' ? 'text-red-600' : 'text-emerald-600'">{{
-                            transaction.type === 'expense' ? '-' : '+' }}{{ money(transaction.amount) }}</strong><span
-                        class="flex gap-1"><button type="button" class="rounded border px-2 py-1 text-xs"
-                            @click="edit(transaction)">Edit</button><button type="button"
+                <div class="flex items-center gap-3">
+                    <strong :class="transaction.type === 'expense' ? 'text-red-600' : transaction.type === 'income' ? 'text-emerald-600' : 'text-blue-600'">
+                        {{ transaction.type === 'expense' ? '-' : transaction.type === 'income' ? '+' : '↔ ' }}{{ money(transaction.amount) }}
+                    </strong>
+                    <span class="flex gap-1">
+                        <button type="button" class="rounded border px-2 py-1 text-xs"
+                            @click="edit(transaction)">Edit</button>
+                        <button type="button"
                             class="rounded border border-red-200 px-2 py-1 text-xs text-red-700"
-                            @click="remove(transaction.id)">Hapus</button></span></div>
+                            @click="remove(transaction.id)">Hapus</button>
+                    </span>
+                </div>
             </div>
             <p v-if="!transactions.length" class="p-8 text-center text-slate-500">Belum ada transaksi.</p>
         </div>
@@ -64,10 +86,44 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { createTransaction, deleteTransaction, getTransactions, getWallets, updateTransaction } from '../../services/api'
-const transactions = ref([]); const wallets = ref([]); const open = ref(false); const error = ref(''); const form = ref({ type: 'expense', wallet_id: '', amount: 0, description: '' })
+
+const transactions = ref([]);
+const wallets = ref([]);
+const open = ref(false);
+const error = ref('');
+const form = ref({ type: 'expense', wallet_id: '', target_wallet_id: '', amount: 0, description: '' })
 const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
-async function load() { const now = new Date(); const [t, w] = await Promise.all([getTransactions(now.getFullYear(), now.getMonth() + 1), getWallets()]); transactions.value = t.data || []; wallets.value = w.data || [] }
-async function save() { try { const payload = form.value.type === 'income' ? { ...form.value, wallet_id: '' } : form.value; await createTransaction(payload); form.value = { type: 'expense', wallet_id: '', amount: 0, description: '' }; open.value = false; await load() } catch (saveError) { error.value = saveError.message } }
+
+async function load() {
+    const now = new Date();
+    const [t, w] = await Promise.all([
+        getTransactions(now.getFullYear(), now.getMonth() + 1),
+        getWallets()
+    ]);
+    transactions.value = t.data || [];
+    wallets.value = w.data || []
+}
+
+async function save() {
+    try {
+        const payload = {
+            type: form.value.type,
+            wallet_id: form.value.wallet_id,
+            amount: form.value.amount,
+            description: form.value.description
+        }
+        if (form.value.type === 'allocation') {
+            payload.target_wallet_id = form.value.target_wallet_id
+        }
+        await createTransaction(payload);
+        form.value = { type: 'expense', wallet_id: '', target_wallet_id: '', amount: 0, description: '' };
+        open.value = false;
+        await load()
+    } catch (saveError) {
+        error.value = saveError.message
+    }
+}
+
 async function edit(transaction) {
     const description = window.prompt('Catatan transaksi', transaction.description || '')
     if (description !== null) {
@@ -79,6 +135,7 @@ async function edit(transaction) {
         }
     }
 }
+
 async function remove(id) {
     if (window.confirm('Hapus transaksi ini?')) {
         try {
@@ -89,5 +146,6 @@ async function remove(id) {
         }
     }
 }
+
 onMounted(load)
 </script>
