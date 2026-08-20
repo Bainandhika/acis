@@ -46,19 +46,28 @@ func (r *authRepoImpl) FindByUserID(ctx context.Context, userID, email string) (
 
 func (r *authRepoImpl) ProvisionUser(ctx context.Context, userID, email string, user *User) (*User, error) {
 	var provisioned User
+	fallbackUsername := "user_"
+	if len(user.ID) >= 8 {
+		fallbackUsername += user.ID[:8]
+	} else {
+		fallbackUsername += user.ID
+	}
+	username := user.Username
+	if username == "" {
+		username = fallbackUsername
+	}
+
 	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
-		// username fallback = 'user_' || left($1, 8)
 		query := `
 			INSERT INTO users (id, name, username, avatar_url)
-			VALUES ($1, $2, COALESCE(NULLIF(TRIM($3), ''), 'user_' || LEFT($1, 8)), $4)
-			ON CONFLICT (id) DO NOTHING
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (id) DO UPDATE
+			SET name = EXCLUDED.name,
+			    avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+			    updated_at = CURRENT_TIMESTAMP
+			RETURNING id, username, name, avatar_url, telegram_chat_id, created_at, updated_at
 		`
-		if _, err := tx.ExecContext(ctx, query, user.ID, user.Name, user.Username, user.AvatarURL); err != nil {
-			return err
-		}
-
-		selectQuery := `SELECT id, username, name, avatar_url, telegram_chat_id, created_at, updated_at FROM users WHERE id = $1`
-		return tx.GetContext(ctx, &provisioned, selectQuery, user.ID)
+		return tx.GetContext(ctx, &provisioned, query, user.ID, user.Name, username, user.AvatarURL)
 	})
 	if err != nil {
 		return nil, err
