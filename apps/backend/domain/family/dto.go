@@ -3,8 +3,7 @@ package family
 import "time"
 
 type CreateFamilyReq struct {
-	Name          string   `json:"name" binding:"required,min=2,max=255"`
-	MonthlyIncome *float64 `json:"monthly_income"`
+	Name string `json:"name" binding:"required,min=2,max=255"`
 }
 
 type JoinFamilyReq struct {
@@ -12,7 +11,6 @@ type JoinFamilyReq struct {
 }
 
 type UpdateFamilySettingsReq struct {
-	MonthlyIncome *float64 `json:"monthly_income"`
 }
 
 type UpdateFamilyReq struct {
@@ -39,8 +37,6 @@ type FamilyDTO struct {
 	Name           string            `json:"name"`
 	InviteCode     string            `json:"invite_code"`
 	TelegramChatID *int64            `json:"telegram_chat_id,omitempty"`
-	MonthlyIncome  float64           `json:"monthly_income"`
-	PrimaryBalance float64           `json:"primary_balance"`
 	WalletCounter  int               `json:"wallet_counter"`
 	CreatedBy      *string           `json:"created_by,omitempty"`
 	Members        []FamilyMemberDTO `json:"members,omitempty"`
