@@ -43,11 +43,11 @@ CREATE POLICY users_update ON public.users FOR UPDATE TO authenticated
 -- Table: families
 ALTER TABLE public.families ENABLE ROW LEVEL SECURITY;
 CREATE POLICY families_select ON public.families FOR SELECT TO authenticated
-   USING (public.is_family_member(id));
+   USING (created_by = auth.uid() OR public.is_family_member(id));
 CREATE POLICY families_insert ON public.families FOR INSERT TO authenticated
    WITH CHECK (created_by = auth.uid());
 CREATE POLICY families_update ON public.families FOR UPDATE TO authenticated
-   USING (public.is_family_member(id)) WITH CHECK (public.is_family_member(id));
+   USING (created_by = auth.uid() OR public.is_family_member(id)) WITH CHECK (created_by = auth.uid() OR public.is_family_member(id));
 
 -- Table: family_members
 ALTER TABLE public.family_members ENABLE ROW LEVEL SECURITY;
