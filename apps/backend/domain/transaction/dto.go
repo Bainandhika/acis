@@ -6,15 +6,15 @@ import (
 )
 
 type CreateTransactionDTO struct {
-	WalletID    string  `json:"wallet_id"`
-	UserID      string  `json:"-"`
-	FamilyID    string  `json:"-"`
-	Type        string  `json:"type" binding:"required,oneof=income expense allocation"`
-	Amount      float64 `json:"amount" binding:"required,gt=0"`
-	Description *string `json:"description,omitempty"`
+	WalletID       string  `json:"wallet_id"`
+	TargetWalletID string  `json:"target_wallet_id,omitempty"`
+	UserID         string  `json:"-"`
+	FamilyID       string  `json:"-"`
+	Type           string  `json:"type" binding:"required,oneof=income expense allocation"`
+	Amount         float64 `json:"amount" binding:"required,gt=0"`
+	Description    *string `json:"description,omitempty"`
 }
 
-// UPDATED: Added 'allocation' to the oneof validation to match frontend capabilities and CreateTransactionDTO
 type UpdateTransactionDTO struct {
 	WalletID    string  `json:"wallet_id"`
 	Type        string  `json:"type" binding:"required,oneof=income expense allocation"`
