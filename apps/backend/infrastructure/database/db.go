@@ -171,6 +171,9 @@ func (db *AppDB) WithUserContext(ctx context.Context, fn func(tx *sqlx.Tx) error
 	if _, err := tx.ExecContext(ctx, `SELECT set_config('request.jwt.claims', $1, true)`, string(claims)); err != nil {
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('request.jwt.claim.sub', $1, true)`, userID); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `SET LOCAL ROLE authenticated`); err != nil {
 		return err
 	}
