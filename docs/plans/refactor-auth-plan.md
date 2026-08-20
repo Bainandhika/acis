@@ -285,9 +285,9 @@ The bot **NO LONGER** handles user authentication, login deep-links, or OTP deli
 
 ---
 
-## PHASE 5 — Verification & Security
+## PHASE 5 — Verification & Security [COMPLETED]
 
-### TASK-501: RLS negative tests (HUMAN-ASSISTED, agent provides script)
+### TASK-501: RLS negative tests (HUMAN-ASSISTED, agent provides script) [COMPLETED]
 - **Create file:** `scripts/rls_smoke_test.sh` containing curl cases:
   1. No token → 401 on `/auth/me`.
   2. User A token → 200 on own families.
@@ -296,7 +296,7 @@ The bot **NO LONGER** handles user authentication, login deep-links, or OTP deli
 - **Acceptance:** all four behave as specified against deployed backend.
 - **Commit:** `test: add rls smoke test script`
 
-### TASK-502: OWASP review checklist
+### TASK-502: OWASP review checklist [COMPLETED]
 - **Create file:** `docs/security-review-supabase-auth.md` verifying: A01 (RLS + repo filters), A02 (no secrets in repo; `acis_app` password manual), A03 (parameterized `set_config`), A07 (Supabase-managed auth, no custom OTP), A05 (env-only config).
 - **Commit:** `docs: add security review for supabase auth migration`
 
