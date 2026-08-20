@@ -30,10 +30,7 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	dsn := cfg.DSN()
-	if envDSN := os.Getenv("DATABASE_URL"); envDSN != "" {
-		dsn = envDSN
-	}
+	dsn := cfg.AdminDSN()
 
 	// 2. Initialize Database Connection Pool
 	db, err := database.NewConnection(dsn)
