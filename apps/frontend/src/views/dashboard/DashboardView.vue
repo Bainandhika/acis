@@ -24,7 +24,7 @@ const family = ref(null); const transactions = ref([]); const wallets = ref([])
 const money = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
 const cards = computed(() => [{
   label: 'Pendapatan bulan ini',
-  value: Number(family.value?.monthly_income || 0)
+  value: transactions.value.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
 }, {
   label: 'Pengeluaran bulan ini',
   value: transactions.value.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
