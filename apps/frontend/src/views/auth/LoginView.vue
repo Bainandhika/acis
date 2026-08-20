@@ -3,6 +3,7 @@
         <div
             class="w-full max-w-[560px] rounded-[20px] bg-white p-8 shadow-[0_10px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200">
             <div class="mb-7 text-center">
+                <img src="../../assets/logo-acis.png" alt="ACIS Logo" class="mx-auto mb-4 h-16 w-auto" fetchpriority="high" width="64" height="64" />
                 <p class="mb-2 text-[13px] font-semibold uppercase tracking-[0.22em] text-blue-600">ACIS</p>
                 <h2 class="text-[42px] font-black leading-none text-slate-800">{{ authMode === 'login' ? 'Masuk' :
                     'Daftar' }}</h2>
