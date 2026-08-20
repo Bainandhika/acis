@@ -121,7 +121,10 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 		UserID:   userID,
 		Role:     "member",
 	}
-	if err := s.repo.AddMember(ctx, s.db, member); err != nil {
+	err = s.db.WithUserContext(ctx, userID, "", func(tx *sqlx.Tx) error {
+		return s.repo.AddMember(ctx, tx, member)
+	})
+	if err != nil {
 		return nil, errors.New("failed to join family")
 	}
 
