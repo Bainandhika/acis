@@ -61,8 +61,8 @@ func TestWorkerPool_SuccessJob(t *testing.T) {
 
 	job := notification.NotificationJob{
 		ID:        "job-1",
-		Channel:   "email_otp",
-		Recipient: "test@example.com",
+		Channel:   "telegram_alert",
+		Recipient: "123456",
 	}
 
 	submitted := pool.Submit(job)
@@ -84,7 +84,7 @@ func TestWorkerPool_FailureJob(t *testing.T) {
 		wg.Done()
 	})
 
-	pool.RegisterHandler("email_otp", func(ctx context.Context, job notification.NotificationJob) error {
+	pool.RegisterHandler("telegram_alert", func(ctx context.Context, job notification.NotificationJob) error {
 		return errors.New("send failed")
 	})
 
@@ -93,8 +93,8 @@ func TestWorkerPool_FailureJob(t *testing.T) {
 
 	job := notification.NotificationJob{
 		ID:        "job-2",
-		Channel:   "email_otp",
-		Recipient: "fail@example.com",
+		Channel:   "telegram_alert",
+		Recipient: "123456",
 	}
 
 	submitted := pool.Submit(job)

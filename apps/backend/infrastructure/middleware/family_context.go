@@ -7,6 +7,7 @@ import (
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 )
 
 // FamilyContextMiddleware queries the user's family_id and role from the DB
@@ -29,9 +30,13 @@ func FamilyContextMiddleware(db *database.AppDB) gin.HandlerFunc {
 
 		var familyID string
 		var role string
-		query := `SELECT family_id, role FROM family_members WHERE user_id = $1 LIMIT 1`
-		// Use c.Request.Context() to maintain distributed tracing context and request cancellation
-		err := db.QueryRowContext(c.Request.Context(), query, uidStr).Scan(&familyID, &role)
+		email, _ := c.Get("auth_user_email")
+		emailStr, _ := email.(string)
+
+		err := db.WithUserContext(c.Request.Context(), uidStr, emailStr, func(tx *sqlx.Tx) error {
+			query := `SELECT family_id, role FROM family_members WHERE user_id = $1 LIMIT 1`
+			return tx.QueryRowContext(c.Request.Context(), query, uidStr).Scan(&familyID, &role)
+		})
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "user must join a family first"})
 			c.Abort()
