@@ -14,18 +14,18 @@ const startPrompt = "Ketik /start untuk memulai bot ACIS."
 
 const onboardingMessage = `👋 *Selamat datang di ACIS Bot!*
 
-Saya membantu Anda mencatat transaksi keuangan dan melihat saldo dompet keluarga langsung dari Telegram.
+Saya membantu Anda mencatat transaksi keuangan, menerima notifikasi, dan melihat saldo dompet keluarga langsung dari Telegram.
 
 📋 *Daftar Perintah:*
-• /link {code} | /hubungkan {kode}
-  _Menghubungkan obrolan Telegram ini ke ruang keluarga Anda._
+• /link {kode} | /hubungkan {kode}
+  _Menghubungkan akun Telegram Anda dengan akun ACIS atau grup ke keluarga._
 • /balance | /saldo
   _Melihat saldo seluruh dompet keluarga beserta ID Dompet._
-• /transaction {wallet id} {income/expense} {nominal} {description} | /transaksi {id dompet} {pemasukan/pengeluaran} {nominal} {keterangan}
+• /transaction {id dompet} {pemasukan/pengeluaran} {nominal} {keterangan} | /transaksi {id dompet} {pemasukan/pengeluaran} {nominal} {keterangan}
   _Mencatat transaksi baru ke dompet keluarga._
 
 💡 *Contoh:*
-• /link SMTH01
+• /link ABC123
 • /saldo
 • /transaksi SMTH01-1 pengeluaran 50000 Belanja sayur di pasar`
 
@@ -81,15 +81,23 @@ func (d *Dispatcher) ProcessUpdate(ctx context.Context, u *telegram.Update) erro
 
 func (d *Dispatcher) handleLink(ctx context.Context, chatID int64, parts []string) error {
 	if len(parts) < 2 {
-		return d.tg.SendMessage(ctx, chatID, "❌ Format salah.\nGunakan: `/link [kode_undangan]` atau `/hubungkan [kode_undangan]`\nContoh: `/link SMTH01`")
+		return d.tg.SendMessage(ctx, chatID, "❌ Format salah.\nGunakan: `/link [kode]` atau `/hubungkan [kode]`\nContoh: `/link ABC123`")
 	}
 
-	inviteCode := strings.ToUpper(parts[1])
-	if err := d.bc.LinkFamily(ctx, inviteCode, chatID); err != nil {
-		return d.tg.SendMessage(ctx, chatID, fmt.Sprintf("❌ Gagal menghubungkan: %s", err.Error()))
+	code := strings.ToUpper(strings.TrimSpace(parts[1]))
+
+	// First try linking user account (Supabase profile linking via 6-character code)
+	errUser := d.bc.LinkUserAccount(ctx, code, chatID)
+	if errUser == nil {
+		return d.tg.SendMessage(ctx, chatID, fmt.Sprintf("✅ Berhasil menghubungkan akun Telegram Anda ke profil ACIS!\n\nKode verifikasi: `%s`", code))
 	}
 
-	return d.tg.SendMessage(ctx, chatID, fmt.Sprintf("✅ Berhasil terhubung ke keluarga dengan kode undangan `%s`!\n\nGunakan /saldo atau /balance untuk melihat daftar dompet.", inviteCode))
+	// Fallback: try linking family invite code (if connecting group or family chat)
+	if errFam := d.bc.LinkFamily(ctx, code, chatID); errFam == nil {
+		return d.tg.SendMessage(ctx, chatID, fmt.Sprintf("✅ Berhasil terhubung ke keluarga dengan kode undangan `%s`!\n\nGunakan /saldo atau /balance untuk melihat daftar dompet.", code))
+	}
+
+	return d.tg.SendMessage(ctx, chatID, fmt.Sprintf("❌ Gagal menghubungkan: %s", errUser.Error()))
 }
 
 func (d *Dispatcher) handleBalance(ctx context.Context, chatID int64) error {

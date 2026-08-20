@@ -266,20 +266,20 @@ Future backend changes MUST adhere strictly to these patterns:
 
 ---
 
-## PHASE 4 — Telegram Bot
+## PHASE 4 — Telegram Bot [COMPLETED]
 
 The bot **NO LONGER** handles user authentication, login deep-links, or OTP delivery. Account linking operates via a secure one-time code flow:
 1. **Frontend / Webapp:** Authenticated user requests a one-time link code (`POST /api/v1/telegram/link-code` with user Supabase JWT). Backend generates a 6-character code and caches it in Redis for 10 minutes.
 2. **Telegram User:** User opens the Telegram bot and sends `/link <code>`.
 3. **Bot Backend:** Bot sends `POST /api/v1/internal/telegram/link` (with `BOT_INTERNAL_SECRET`) containing the code and `chat_id`. Backend validates the code and updates `users.telegram_chat_id` using `adminDB`.
 
-### TASK-401: Remove auth flows from bot
+### TASK-401: Remove auth flows from bot [COMPLETED]
 - **Files:** `apps/bot/**`.
 - **Delete:** `start=auth_<token>` deep-link handling, login OTP delivery, anything calling removed backend auth endpoints.
 - **Keep:** transaction/proposal notification handlers and internal API client (`BOT_INTERNAL_SECRET`).
 - **Commit:** `refactor(bot): remove authentication flows`
 
-### TASK-402: Add /link command
+### TASK-402: Add /link command [COMPLETED]
 - **Implement:** `/link <code>` → call `POST /internal/telegram/link` with the sender's `chat_id`; reply with success/failure text.
 - **Commit:** `feat(bot): add /link command for account linking`
 

@@ -65,6 +65,44 @@ type apiResponse[T any] struct {
 	Data    T      `json:"data,omitempty"`
 }
 
+func (c *Client) LinkUserAccount(ctx context.Context, code string, chatID int64) error {
+	payload := map[string]interface{}{
+		"code":    code,
+		"chat_id": chatID,
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/api/v1/internal/telegram/link", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.botSecret != "" {
+		req.Header.Set("X-Bot-Secret", c.botSecret)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var errResp apiResponse[any]
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		if errResp.Error != "" {
+			return fmt.Errorf("%s", errResp.Error)
+		}
+		return fmt.Errorf("backend returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 func (c *Client) LinkFamily(ctx context.Context, inviteCode string, chatID int64) error {
 	payload := map[string]interface{}{
 		"invite_code": inviteCode,
