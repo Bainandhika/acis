@@ -1,25 +1,52 @@
 <template>
     <div class="flex min-h-screen items-center justify-center bg-slate-200 px-4 py-8">
-        <div class="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
+        <div
+            class="w-full max-w-[560px] rounded-[20px] bg-white p-8 shadow-[0_10px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200">
             <div class="mb-7 text-center">
-                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">ACIS</p>
-                <h2 class="text-2xl font-bold text-slate-800">Masuk</h2>
-                <p class="mt-2 text-sm text-slate-500">Masuk dengan kode OTP dari Telegram</p>
+                <p class="mb-2 text-[13px] font-semibold uppercase tracking-[0.22em] text-blue-600">ACIS</p>
+                <h2 class="text-[42px] font-black leading-none text-slate-800">{{ authMode === 'login' ? 'Masuk' :
+                    'Daftar' }}</h2>
             </div>
 
             <form v-if="step === 1" class="space-y-4" @submit.prevent="handleRequestOtp">
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-700" for="phone">Nomor Telepon</label>
-                    <input id="phone" v-model="phoneNumber" type="tel" inputmode="tel" autocomplete="tel"
-                        class="w-full rounded border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
-                        placeholder="081234567890" />
-                    <p class="mt-2 text-xs text-slate-500">Gunakan nomor yang terhubung ke akun ACIS.</p>
+                <div v-if="authMode === 'register'" class="space-y-2">
+                    <label class="block text-[20px] font-bold text-slate-800" for="name">Nama</label>
+                    <input id="name" v-model="name" type="text" autocomplete="name"
+                        class="w-full rounded-[10px] border border-slate-300 bg-white px-3 py-3 text-[18px] text-slate-800 outline-none transition focus:border-blue-500"
+                        placeholder="Nama lengkap" />
                 </div>
-                <p v-if="error" class="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</p>
+                <div class="space-y-2">
+                    <label class="block text-[20px] font-bold text-slate-800" for="phone">Nomor Telepon</label>
+                    <input id="phone" v-model="phoneNumber" type="tel" inputmode="tel" autocomplete="tel"
+                        class="w-full rounded-[10px] border border-blue-400 bg-white px-3 py-3 text-[18px] text-slate-800 outline-none transition focus:border-blue-500"
+                        placeholder="081234567890" />
+                </div>
+
+                <p v-if="error"
+                    class="rounded-[8px] bg-red-100 px-4 py-3 text-[18px] font-medium leading-relaxed text-red-700">
+                    {{ error }}
+                </p>
+
                 <button type="submit" :disabled="loading"
-                    class="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    class="mt-2 w-full rounded-[10px] px-4 py-4 text-[22px] font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                    :class="authMode === 'register' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'">
                     {{ loading ? 'Mengirim...' : 'Minta Kode OTP' }}
                 </button>
+
+                <div v-if="authMode === 'login'" class="pt-1 text-center text-[18px] text-slate-600">
+                    Belum punya akun?
+                    <button type="button" class="font-semibold text-blue-600 hover:text-blue-700"
+                        @click="switchMode('register')">
+                        Daftar
+                    </button>
+                </div>
+                <div v-else class="pt-1 text-center text-[18px] text-slate-600">
+                    Sudah punya akun?
+                    <button type="button" class="font-semibold text-blue-600 hover:text-blue-700"
+                        @click="switchMode('login')">
+                        Masuk
+                    </button>
+                </div>
             </form>
 
             <form v-else class="space-y-4" @submit.prevent="handleVerifyOtp">
@@ -41,7 +68,8 @@
                 <p v-if="error" class="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</p>
                 <button type="submit" :disabled="loading || otp.length !== 6"
                     class="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-                    {{ loading ? 'Memverifikasi...' : 'Verifikasi & Masuk' }}
+                    {{ loading ? 'Memverifikasi...' : authMode === 'register' ? 'Verifikasi & Daftar' : 'Verifikasi &
+                    Masuk' }}
                 </button>
                 <button type="button" :disabled="loading" class="w-full text-sm text-slate-500 hover:text-slate-800"
                     @click="reset">
@@ -59,7 +87,9 @@ import { useAuthStore } from '../../stores/useAuthStore'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const authMode = ref('login')
 const step = ref(1)
+const name = ref('')
 const phoneNumber = ref('')
 const otp = ref('')
 const loading = ref(false)
@@ -82,8 +112,24 @@ function normalizedPhone() {
     return phone
 }
 
+function switchMode(mode) {
+    authMode.value = mode
+    step.value = 1
+    otp.value = ''
+    error.value = ''
+    if (mode === 'login') {
+        name.value = ''
+    }
+}
+
 async function handleRequestOtp() {
     error.value = ''
+
+    if (authMode.value === 'register' && !name.value.trim()) {
+        error.value = 'Nama wajib diisi untuk pendaftaran.'
+        return
+    }
+
     if (!/^(\+628|628|08)\d{8,12}$/.test(phoneNumber.value.trim().replace(/[\s-]/g, ''))) {
         error.value = 'Masukkan nomor telepon Indonesia yang valid.'
         return
@@ -91,7 +137,12 @@ async function handleRequestOtp() {
 
     loading.value = true
     try {
-        const data = await authStore.requestOtp(normalizedPhone())
+        const payload = {
+            action: authMode.value,
+            username: authMode.value === 'register' ? name.value.trim() : undefined
+        }
+
+        const data = await authStore.requestOtp(normalizedPhone(), payload)
         directSent.value = data.direct_sent
         isTestUser.value = Boolean(data.is_test_user)
         testOtp.value = data.test_otp || ''
@@ -107,7 +158,12 @@ async function handleVerifyOtp() {
     error.value = ''
     loading.value = true
     try {
-        await authStore.verifyOtp(normalizedPhone(), otp.value)
+        const payload = {
+            action: authMode.value,
+            username: authMode.value === 'register' ? name.value.trim() : undefined
+        }
+
+        await authStore.verifyOtp(normalizedPhone(), otp.value, payload)
         router.push({ path: '/' })
     } catch (verifyError) {
         error.value = verifyError.message
