@@ -10,6 +10,7 @@ import (
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 )
 
 type FamilyService interface {
@@ -68,28 +69,24 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 		CreatedBy:     &userID,
 	}
 
-	tx, err := s.db.BeginTxx(ctx, nil)
+	err = s.db.WithUserContext(ctx, userID, "", func(tx *sqlx.Tx) error {
+		if err := s.repo.CreateFamily(ctx, tx, family); err != nil {
+			return errors.New("failed to create family record")
+		}
+
+		member := &FamilyMember{
+			ID:       uuid.NewString(),
+			FamilyID: family.ID,
+			UserID:   userID,
+			Role:     "admin",
+		}
+		if err := s.repo.AddMember(ctx, tx, member); err != nil {
+			return errors.New("failed to add admin family member")
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, errors.New("failed to start database transaction")
-	}
-	defer tx.Rollback()
-
-	if err := s.repo.CreateFamily(ctx, tx, family); err != nil {
-		return nil, errors.New("failed to create family record")
-	}
-
-	member := &FamilyMember{
-		ID:       uuid.NewString(),
-		FamilyID: family.ID,
-		UserID:   userID,
-		Role:     "admin",
-	}
-	if err := s.repo.AddMember(ctx, tx, member); err != nil {
-		return nil, errors.New("failed to add admin family member")
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, errors.New("failed to commit family creation")
+		return nil, err
 	}
 
 	return &FamilyDTO{
