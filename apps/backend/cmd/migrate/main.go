@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -9,64 +8,45 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Bainandhika/acis/apps/backend/config"
+	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/jmoiron/sqlx"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
 type Config struct {
-	DatabaseURL string
-	DBHost      string
-	DBPort      string
-	DBUser      string
-	DBPassword  string
-	DBName      string
-	DBSSLMode   string
+	DBHost     string
+	DBPort     string
+	DBUser     string
+	DBPassword string
+	DBName     string
+	DBSSLMode  string
 }
 
 func main() {
-	if err := godotenv.Load(".env"); err != nil {
-		_ = godotenv.Load("../.env")
-		_ = godotenv.Load("../../.env")
-	}
-
-	config := Config{
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		DBHost:      getEnv("DB_HOST", "localhost"),
-		DBPort:      getEnv("DB_PORT", "5432"),
-		DBUser:      getEnv("DB_USER", "acis_user"),
-		DBPassword:  getEnv("DB_PASSWORD", "acis_secret_password"),
-		DBName:      getEnv("DB_NAME", "acis_db"),
-		DBSSLMode:   getEnv("DB_SSLMODE", "disable"),
-	}
-
-	var dsn string
-	if config.DatabaseURL != "" {
-		dsn = config.DatabaseURL
-	} else {
-		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			config.DBHost, config.DBPort, config.DBUser, config.DBPassword, config.DBName, config.DBSSLMode,
-		)
-	}
-
-	db, err := sqlx.Connect("postgres", dsn)
+	// 1. Load Modular Configuration (acis-config.yaml + .env secrets)
+	cfg, err := config.Load("acis-config.yaml")
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// 3. Initialize Database Connection Pool
+	db, err := database.NewConnection(cfg.DSN())
+	if err != nil {
+		log.Fatalf("Failed to initialize database connection pool: %v", err)
 	}
 	defer db.Close()
-
 	log.Println(" Connected to database")
 
 	// Create migrations tracking table
-	createMigrationsTable(db)
+	createMigrationsTable(db.DB)
 
 	// Resolve migrations directory from multiple candidate paths
 	migrationsDir := resolveMigrationsDir()
 	log.Printf("📂 Using migrations directory: %s\n", migrationsDir)
 
 	// Run migrations
-	runMigrations(db, migrationsDir)
+	runMigrations(db.DB, migrationsDir)
 }
 
 func resolveMigrationsDir() string {
