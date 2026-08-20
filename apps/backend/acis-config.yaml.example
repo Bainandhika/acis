@@ -3,6 +3,8 @@ server:
   mode: "${GIN_MODE:debug}" # debug | release
 
 database:
+  app_dsn: "${DATABASE_APP_DSN:}"
+  admin_dsn: "${DATABASE_ADMIN_DSN:}"
   url: "${DATABASE_URL:}"
   host: "${DB_HOST:localhost}"
   port: "${DB_PORT:5432}"
@@ -12,9 +14,8 @@ database:
   ssl_mode: "${DB_SSLMODE:disable}"
   time_zone: "Asia/Jakarta"
 
-jwt:
-  secret: "${JWT_SECRET}"
-  expiry: "${JWT_EXPIRY:15m}"
+supabase:
+  jwks_url: "${SUPABASE_JWKS_URL:https://gkouiqfystipswyqwdu.supabase.co/auth/v1/.well-known/jwks.json}"
 
 log:
   dir: "./logs"
@@ -26,10 +27,6 @@ redis:
   port: "${REDIS_PORT:6379}"
   password: "${REDIS_PASSWORD:}"
   db: "${REDIS_DB:0}"
-
-otp:
-  ttl: "${OTP_TTL:5m}"
-  encryption_key: "${OTP_ENCRYPTION_KEY}"
 
 telegram:
   bot_token: "${TELEGRAM_BOT_TOKEN:}"

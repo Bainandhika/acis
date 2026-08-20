@@ -17,6 +17,8 @@ type ServerConfig struct {
 
 type DatabaseConfig struct {
 	URL      string `yaml:"url"`
+	AppDSN   string `yaml:"app_dsn"`
+	AdminDSN string `yaml:"admin_dsn"`
 	Host     string `yaml:"host"`
 	Port     string `yaml:"port"`
 	User     string `yaml:"user"`
@@ -26,9 +28,8 @@ type DatabaseConfig struct {
 	TimeZone string `yaml:"time_zone"`
 }
 
-type JWTConfig struct {
-	Secret string `yaml:"secret"`
-	Expiry string `yaml:"expiry"`
+type SupabaseConfig struct {
+	JWKSURL string `yaml:"jwks_url"`
 }
 
 type LogConfig struct {
@@ -42,11 +43,6 @@ type RedisConfig struct {
 	Port     string `yaml:"port"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
-}
-
-type OTPConfig struct {
-	TTL           string `yaml:"ttl"`
-	EncryptionKey string `yaml:"encryption_key"`
 }
 
 type TelegramConfig struct {
@@ -66,10 +62,9 @@ type CORSConfig struct {
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
-	JWT      JWTConfig      `yaml:"jwt"`
+	Supabase SupabaseConfig `yaml:"supabase"`
 	Log      LogConfig      `yaml:"log"`
 	Redis    RedisConfig    `yaml:"redis"`
-	OTP      OTPConfig      `yaml:"otp"`
 	Telegram TelegramConfig `yaml:"telegram"`
 	Bot      BotConfig      `yaml:"bot"`
 	CORS     CORSConfig     `yaml:"cors"`
@@ -206,8 +201,11 @@ func Load(configPath string) (*Config, error) {
 // 	}
 // }
 
-// DSN returns Data Source Name string for database connection
+// DSN returns Data Source Name string for database connection (legacy/fallback)
 func (c *Config) DSN() string {
+	if c.Database.AppDSN != "" {
+		return c.Database.AppDSN
+	}
 	if c.Database.URL != "" {
 		return c.Database.URL
 	}
@@ -223,4 +221,20 @@ func (c *Config) DSN() string {
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
 		host, port, user, c.Database.Password, name, sslMode, tz,
 	)
+}
+
+// AppDSN returns the DSN for user-scoped operations with RLS
+func (c *Config) AppDSN() string {
+	if c.Database.AppDSN != "" {
+		return c.Database.AppDSN
+	}
+	return c.DSN()
+}
+
+// AdminDSN returns the DSN for admin / internal operations (bypassing RLS)
+func (c *Config) AdminDSN() string {
+	if c.Database.AdminDSN != "" {
+		return c.Database.AdminDSN
+	}
+	return c.DSN()
 }
