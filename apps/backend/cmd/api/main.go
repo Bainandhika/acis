@@ -20,10 +20,12 @@ func main() {
 	logger.Init(cfg.Log.Dir, cfg.Log.Level)
 	defer logger.Close()
 
-	// 3. Initialize Database Connection Pool
-	db, err := database.NewConnection(cfg.DSN())
+	// 3. Initialize Dual Database Connection Pools (userDB for RLS + adminDB for internal/workers)
+	appDSN := cfg.AppDSN()
+	adminDSN := cfg.AdminDSN()
+	db, err := database.NewDualPool(appDSN, adminDSN)
 	if err != nil {
-		log.Fatalf("Failed to initialize database connection pool: %v", err)
+		log.Fatalf("Failed to initialize dual database connection pools: %v", err)
 	}
 	defer db.Close()
 

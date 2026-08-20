@@ -77,6 +77,20 @@ func NewDualPool(appDSN, adminDSN string) (*AppDB, error) {
 	}, nil
 }
 
+func (db *AppDB) Close() error {
+	var errUser, errAdmin error
+	if db.userDB != nil {
+		errUser = db.userDB.Close()
+	}
+	if db.adminDB != nil && db.adminDB != db.userDB {
+		errAdmin = db.adminDB.Close()
+	}
+	if errUser != nil {
+		return errUser
+	}
+	return errAdmin
+}
+
 func (db *AppDB) UserDB() *sqlx.DB {
 	if db.userDB != nil {
 		return db.userDB

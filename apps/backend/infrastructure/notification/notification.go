@@ -101,7 +101,7 @@ func (r *outboxRepository) FetchAndLockPending(ctx context.Context, limit int) (
 	`
 
 	var jobs []NotificationJob
-	err := r.db.SelectContext(ctx, &jobs, query, limit)
+	err := r.db.AdminDB().SelectContext(ctx, &jobs, query, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch and lock pending notifications: %w", err)
 	}
@@ -115,7 +115,7 @@ func (r *outboxRepository) MarkSent(ctx context.Context, id string) error {
 		SET status = 'sent', updated_at = NOW()
 		WHERE id = $1
 	`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.AdminDB().ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to mark notification as sent: %w", err)
 	}
@@ -131,7 +131,7 @@ func (r *outboxRepository) MarkFailed(ctx context.Context, id string, errMsg str
 		    updated_at = NOW()
 		WHERE id = $1
 	`
-	_, err := r.db.ExecContext(ctx, query, id, errMsg)
+	_, err := r.db.AdminDB().ExecContext(ctx, query, id, errMsg)
 	if err != nil {
 		return fmt.Errorf("failed to mark notification as failed: %w", err)
 	}
