@@ -30,8 +30,13 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// 3. Initialize Database Connection Pool
-	db, err := database.NewConnection(cfg.DSN())
+	dsn := cfg.DSN()
+	if envDSN := os.Getenv("DATABASE_URL"); envDSN != "" {
+		dsn = envDSN
+	}
+
+	// 2. Initialize Database Connection Pool
+	db, err := database.NewConnection(dsn)
 	if err != nil {
 		log.Fatalf("Failed to initialize database connection pool: %v", err)
 	}
@@ -160,11 +165,4 @@ func getAppliedMigrations(db *sqlx.DB) map[string]bool {
 	}
 
 	return applied
-}
-
-func getEnv(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists && value != "" {
-		return value
-	}
-	return defaultValue
 }
