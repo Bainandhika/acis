@@ -1,25 +1,17 @@
 server:
-  port: "${PORT:8080}"
-  mode: "${GIN_MODE:debug}" # debug | release
+  port: "8080"
+  mode: "debug" # debug | release
 
 database:
   app_dsn: "${DATABASE_APP_DSN:}"
   admin_dsn: "${DATABASE_ADMIN_DSN:}"
-  url: "${DATABASE_URL:}"
-  host: "${DB_HOST:localhost}"
-  port: "${DB_PORT:5432}"
-  user: "${DB_USER:acis_user}"
-  password: "${DB_PASSWORD:acis_secret_password}"
-  name: "${DB_NAME:acis_db}"
-  ssl_mode: "${DB_SSLMODE:disable}"
-  time_zone: "Asia/Jakarta"
 
 supabase:
-  jwks_url: "${SUPABASE_JWKS_URL:https://gkouiqfystipswyqwdu.supabase.co/auth/v1/.well-known/jwks.json}"
+  jwks_url: "${SUPABASE_JWKS_URL:}"
 
 log:
   dir: "./logs"
-  level: "${LOG_LEVEL:info}" # debug | info | warn | error
+  level: "debug" # debug | info | warn | error
 
 redis:
   url: "${REDIS_URL:}"
@@ -34,7 +26,7 @@ telegram:
   bot_username: "${TELEGRAM_BOT_USERNAME:}"
 
 bot:
-  secret: "${BOT_INTERNAL_SECRET:changeme}"
+  secret: "${BOT_INTERNAL_SECRET:}"
 
 cors:
   allowed_origins:
