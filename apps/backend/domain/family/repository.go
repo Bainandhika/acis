@@ -33,7 +33,7 @@ type FamilyRepository interface {
 	GetWalletsByFamilyID(ctx context.Context, familyID string) ([]Wallet, error)
 	GetWalletByID(ctx context.Context, walletID string) (*Wallet, error)
 	FindWalletByShortID(ctx context.Context, shortID string) (*Wallet, error)
-	UpdateWallet(ctx context.Context, walletID string, name string, description *string, minimumLimit float64) error
+	UpdateWallet(ctx context.Context, walletID string, name string, description *string, currentBalance float64, minimumLimit float64) error
 	DeleteWallet(ctx context.Context, walletID string, familyID string) error
 	GetLowBalanceWallets(ctx context.Context) ([]LowBalanceWalletDTO, error)
 	FindMemberByID(ctx context.Context, memberID string) (*FamilyMember, error)
@@ -191,9 +191,9 @@ func (r *familyRepoImpl) FindWalletByShortID(ctx context.Context, shortID string
 	return &w, err
 }
 
-func (r *familyRepoImpl) UpdateWallet(ctx context.Context, walletID string, name string, description *string, minimumLimit float64) error {
-	query := `UPDATE wallets SET name = $1, description = $2, minimum_limit = $3, updated_at = NOW() WHERE id = $4`
-	_, err := r.db.ExecContext(ctx, query, name, description, minimumLimit, walletID)
+func (r *familyRepoImpl) UpdateWallet(ctx context.Context, walletID string, name string, description *string, currentBalance float64, minimumLimit float64) error {
+	query := `UPDATE wallets SET name = $1, description = $2, current_balance = $3, minimum_limit = $4, updated_at = NOW() WHERE id = $5`
+	_, err := r.db.ExecContext(ctx, query, name, description, currentBalance, minimumLimit, walletID)
 	return err
 }
 
