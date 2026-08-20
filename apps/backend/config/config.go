@@ -16,16 +16,8 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL      string `yaml:"url"`
 	AppDSN   string `yaml:"app_dsn"`
 	AdminDSN string `yaml:"admin_dsn"`
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Name     string `yaml:"name"`
-	SSLMode  string `yaml:"ssl_mode"`
-	TimeZone string `yaml:"time_zone"`
 }
 
 type SupabaseConfig struct {
@@ -113,73 +105,20 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("Warning: Failed to parse YAML config (%v)", err)
 	}
 
-	// // Environment variable overrides / fallbacks
-	// if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
-	// 	cfg.Database.URL = dbURL
-	// }
-	// if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
-	// 	cfg.Redis.URL = redisURL
-	// }
-	// if tgToken := os.Getenv("TELEGRAM_BOT_TOKEN"); tgToken != "" {
-	// 	cfg.Telegram.BotToken = tgToken
-	// }
-	// if tgSecret := os.Getenv("TELEGRAM_WEBHOOK_SECRET"); tgSecret != "" {
-	// 	cfg.Telegram.WebhookSecret = tgSecret
-	// }
-	// if tgUsername := os.Getenv("TELEGRAM_BOT_USERNAME"); tgUsername != "" {
-	// 	cfg.Telegram.BotUsername = tgUsername
-	// }
-	// if botSecret := os.Getenv("BOT_INTERNAL_SECRET"); botSecret != "" {
-	// 	cfg.Bot.Secret = botSecret
-	// }
-	// if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
-	// 	origins := strings.Split(corsEnv, ",")
-	// 	for i := range origins {
-	// 		origins[i] = strings.TrimSpace(origins[i])
-	// 	}
-	// 	cfg.CORS.AllowedOrigins = origins
-	// }
-	// if len(cfg.CORS.AllowedOrigins) == 0 {
-	// 	cfg.CORS.AllowedOrigins = []string{"http://localhost:5173"}
-	// }
-
 	return &cfg, nil
 }
 
-// DSN returns Data Source Name string for database connection (legacy/fallback)
+// DSN is intentionally kept as an empty fallback to force explicit app_dsn/admin_dsn configuration.
 func (c *Config) DSN() string {
-	if c.Database.AppDSN != "" {
-		return c.Database.AppDSN
-	}
-	if c.Database.URL != "" {
-		return c.Database.URL
-	}
-
-	host := c.Database.Host
-	port := c.Database.Port
-	user := c.Database.User
-	name := c.Database.Name
-	sslMode := c.Database.SSLMode
-	tz := c.Database.TimeZone
-
-	return fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
-		host, port, user, c.Database.Password, name, sslMode, tz,
-	)
+	return ""
 }
 
-// AppDSN returns the DSN for user-scoped operations with RLS
+// AppDSN returns the DSN for user-scoped operations with RLS.
 func (c *Config) AppDSN() string {
-	if c.Database.AppDSN != "" {
-		return c.Database.AppDSN
-	}
-	return c.DSN()
+	return c.Database.AppDSN
 }
 
-// AdminDSN returns the DSN for admin / internal operations (bypassing RLS)
+// AdminDSN returns the DSN for admin / internal operations (bypassing RLS).
 func (c *Config) AdminDSN() string {
-	if c.Database.AdminDSN != "" {
-		return c.Database.AdminDSN
-	}
-	return c.DSN()
+	return c.Database.AdminDSN
 }
