@@ -1,26 +1,88 @@
 package bot
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/Bainandhika/acis/apps/backend/domain/authentication"
 	"github.com/Bainandhika/acis/apps/backend/domain/family"
 	"github.com/Bainandhika/acis/apps/backend/domain/transaction"
+	"github.com/Bainandhika/acis/apps/backend/shared/cache"
 	"github.com/gin-gonic/gin"
 )
 
 type BotHandler struct {
 	familySvc family.FamilyService
 	txSvc     transaction.TransactionService
+	authRepo  authentication.AuthRepository
+	linkStore *cache.TelegramLinkStore
 }
 
-func NewBotHandler(familySvc family.FamilyService, txSvc transaction.TransactionService) *BotHandler {
+func NewBotHandler(familySvc family.FamilyService, txSvc transaction.TransactionService, authRepo authentication.AuthRepository, linkStore *cache.TelegramLinkStore) *BotHandler {
 	return &BotHandler{
 		familySvc: familySvc,
 		txSvc:     txSvc,
+		authRepo:  authRepo,
+		linkStore: linkStore,
 	}
+}
+
+// GenerateLinkCode generates a 6-character code for the user to link their Telegram account
+func (h *BotHandler) GenerateLinkCode(c *gin.Context) {
+	userID := c.GetString("auth_user_id")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	code, err := h.linkStore.GenerateCode(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate linking code"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":       code,
+		"expires_in": 600,
+	})
+}
+
+type InternalLinkReq struct {
+	Code   string `json:"code" binding:"required"`
+	ChatID int64  `json:"chat_id" binding:"required"`
+}
+
+// LinkAccount consumes the link code and binds the user's telegram_chat_id
+func (h *BotHandler) LinkAccount(c *gin.Context) {
+	var req InternalLinkReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, err := h.linkStore.PopCode(c.Request.Context(), strings.ToUpper(strings.TrimSpace(req.Code)))
+	if err != nil {
+		if errors.Is(err, cache.ErrLinkCodeNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "link code not found or expired"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process link code"})
+		return
+	}
+
+	if err := h.authRepo.UpdateTelegramChatID(c.Request.Context(), userID, req.ChatID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link telegram account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "account linked successfully",
+		"user_id": userID,
+		"chat_id": req.ChatID,
+	})
 }
 
 type LinkReq struct {

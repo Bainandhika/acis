@@ -147,6 +147,8 @@ func (s *Server) setupRoutes() {
 	authSvc := authentication.NewService(authRepo)
 	authHandler := authentication.NewAuthHandler(authSvc)
 
+	linkStore := cache.NewTelegramLinkStore(s.redisClient)
+
 	familyRepo := family.NewRepository(s.db)
 	familySvc := family.NewService(familyRepo, s.db)
 	familyHandler := family.NewHandler(familySvc)
@@ -155,7 +157,7 @@ func (s *Server) setupRoutes() {
 	txSvc := transaction.NewService(txRepo, outboxRepo, s.db)
 	txHandler := transaction.NewHandler(txSvc)
 
-	botHandler := bot.NewBotHandler(familySvc, txSvc)
+	botHandler := bot.NewBotHandler(familySvc, txSvc, authRepo, linkStore)
 
 	// Public Routes
 	v1 := s.router.Group("/api/v1")
@@ -207,6 +209,13 @@ func (s *Server) setupRoutes() {
 			authGroup.GET("/me", authHandler.Me)
 		}
 
+		// User Telegram linking code endpoint (behind Supabase JWT middleware)
+		telegramUserGroup := v1.Group("/telegram")
+		telegramUserGroup.Use(supabaseAuth.Handler())
+		{
+			telegramUserGroup.POST("/link-code", botHandler.GenerateLinkCode)
+		}
+
 		// Bot Internal API routes
 		botAPI := v1.Group("/bot")
 		botAPI.Use(middleware.BotSecretMiddleware(s.cfg.Bot.Secret))
@@ -215,6 +224,13 @@ func (s *Server) setupRoutes() {
 			botAPI.GET("/family", botHandler.GetFamily)
 			botAPI.GET("/balance", botHandler.Balance)
 			botAPI.POST("/transaction", botHandler.RecordTransaction)
+		}
+
+		// Internal API routes (for Bot integration)
+		internalAPI := v1.Group("/internal")
+		internalAPI.Use(middleware.BotSecretMiddleware(s.cfg.Bot.Secret))
+		{
+			internalAPI.POST("/telegram/link", botHandler.LinkAccount)
 		}
 	}
 
