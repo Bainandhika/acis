@@ -14,7 +14,7 @@ import (
 )
 
 type FamilyService interface {
-	CreateFamily(ctx context.Context, userID, name string, monthlyIncome float64) (*FamilyDTO, error)
+	CreateFamily(ctx context.Context, userID, name string) (*FamilyDTO, error)
 	JoinFamily(ctx context.Context, userID, inviteCode string) (*FamilyDTO, error)
 	GetMyFamily(ctx context.Context, userID string) (*FamilyDTO, error)
 	UpdateFamilySettings(ctx context.Context, familyID string, req UpdateFamilySettingsReq) error
@@ -46,7 +46,7 @@ func NewService(repo FamilyRepository, db *database.AppDB) FamilyService {
 	}
 }
 
-func (s *familyService) CreateFamily(ctx context.Context, userID, name string, monthlyIncome float64) (*FamilyDTO, error) {
+func (s *familyService) CreateFamily(ctx context.Context, userID, name string) (*FamilyDTO, error) {
 	existing, err := s.repo.FindFamilyByUserID(ctx, userID)
 	if err != nil {
 		return nil, errors.New("failed to check existing family membership")
@@ -64,14 +64,13 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 		ID:            uuid.NewString(),
 		Name:          name,
 		InviteCode:    inviteCode,
-		MonthlyIncome: monthlyIncome,
 		WalletCounter: 0,
 		CreatedBy:     &userID,
 	}
 
 	err = s.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		if err := s.repo.CreateFamily(ctx, tx, family); err != nil {
-			return errors.New("failed to create family record")
+			return fmt.Errorf("failed to create family record: %w", err)
 		}
 
 		member := &FamilyMember{
@@ -81,7 +80,7 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 			Role:     "admin",
 		}
 		if err := s.repo.AddMember(ctx, tx, member); err != nil {
-			return errors.New("failed to add admin family member")
+			return fmt.Errorf("failed to add admin family member: %w", err)
 		}
 		return nil
 	})
@@ -90,14 +89,12 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 	}
 
 	return &FamilyDTO{
-		ID:             family.ID,
-		Name:           family.Name,
-		InviteCode:     family.InviteCode,
-		MonthlyIncome:  family.MonthlyIncome,
-		PrimaryBalance: family.PrimaryBalance,
-		WalletCounter:  family.WalletCounter,
-		CreatedBy:      family.CreatedBy,
-		CreatedAt:      family.CreatedAt,
+		ID:            family.ID,
+		Name:          family.Name,
+		InviteCode:    family.InviteCode,
+		WalletCounter: family.WalletCounter,
+		CreatedBy:     family.CreatedBy,
+		CreatedAt:     family.CreatedAt,
 	}, nil
 }
 
@@ -133,8 +130,6 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 		Name:           family.Name,
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
-		MonthlyIncome:  family.MonthlyIncome,
-		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
@@ -175,8 +170,6 @@ func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*Family
 		Name:           family.Name,
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
-		MonthlyIncome:  family.MonthlyIncome,
-		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		Members:        memberDTOs,
@@ -185,12 +178,6 @@ func (s *familyService) GetMyFamily(ctx context.Context, userID string) (*Family
 }
 
 func (s *familyService) UpdateFamilySettings(ctx context.Context, familyID string, req UpdateFamilySettingsReq) error {
-	if req.MonthlyIncome != nil {
-		if *req.MonthlyIncome < 0 {
-			return errors.New("monthly income cannot be negative")
-		}
-		return s.repo.UpdateMonthlyIncome(ctx, familyID, *req.MonthlyIncome)
-	}
 	return nil
 }
 
@@ -215,8 +202,6 @@ func (s *familyService) FindByInviteCode(ctx context.Context, inviteCode string)
 		Name:           family.Name,
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
-		MonthlyIncome:  family.MonthlyIncome,
-		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
@@ -233,8 +218,6 @@ func (s *familyService) FindByTelegramChatID(ctx context.Context, chatID int64) 
 		Name:           family.Name,
 		InviteCode:     family.InviteCode,
 		TelegramChatID: family.TelegramChatID,
-		MonthlyIncome:  family.MonthlyIncome,
-		PrimaryBalance: family.PrimaryBalance,
 		WalletCounter:  family.WalletCounter,
 		CreatedBy:      family.CreatedBy,
 		CreatedAt:      family.CreatedAt,
