@@ -146,61 +146,6 @@ func Load(configPath string) (*Config, error) {
 	return &cfg, nil
 }
 
-// func defaultFallback() *Config {
-// 	allowedOrigins := []string{"http://localhost:5173"}
-// 	if corsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); corsEnv != "" {
-// 		origins := strings.Split(corsEnv, ",")
-// 		for i := range origins {
-// 			origins[i] = strings.TrimSpace(origins[i])
-// 		}
-// 		allowedOrigins = origins
-// 	}
-
-// 	return &Config{
-// 		Server: ServerConfig{
-// 			Port: os.Getenv("PORT"),
-// 			Mode: os.Getenv("GIN_MODE"),
-// 		},
-// 		Database: DatabaseConfig{
-// 			URL:      os.Getenv("DATABASE_URL"),
-// 			Host:     os.Getenv("DB_HOST"),
-// 			Port:     os.Getenv("DB_PORT"),
-// 			User:     os.Getenv("DB_USER"),
-// 			Password: os.Getenv("DB_PASSWORD"),
-// 			Name:     os.Getenv("DB_NAME"),
-// 			SSLMode:  "disable",
-// 			TimeZone: "Asia/Jakarta",
-// 		},
-// 		JWT: JWTConfig{
-// 			Secret: os.Getenv("JWT_SECRET"),
-// 			Expiry: "24h",
-// 		},
-// 		Log: LogConfig{
-// 			Dir:   "./logs",
-// 			Level: "info",
-// 		},
-// 		Redis: RedisConfig{
-// 			URL:      os.Getenv("REDIS_URL"),
-// 			Host:     "localhost",
-// 			Port:     "6379",
-// 			Password: os.Getenv("REDIS_PASSWORD"),
-// 			DB:       0,
-// 		},
-// 		OTP: OTPConfig{
-// 			TTL:           "5m",
-// 			EncryptionKey: os.Getenv("OTP_ENCRYPTION_KEY"),
-// 		},
-// 		Telegram: TelegramConfig{
-// 			BotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
-// 			WebhookSecret: os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
-// 			BotUsername:   os.Getenv("TELEGRAM_BOT_USERNAME"),
-// 		},
-// 		CORS: CORSConfig{
-// 			AllowedOrigins: allowedOrigins,
-// 		},
-// 	}
-// }
-
 // DSN returns Data Source Name string for database connection (legacy/fallback)
 func (c *Config) DSN() string {
 	if c.Database.AppDSN != "" {

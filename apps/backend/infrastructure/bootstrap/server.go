@@ -27,25 +27,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type roleFinderAdapter struct {
-	repo family.FamilyRepository
-}
-
-func NewRoleFinderAdapter(repo family.FamilyRepository) authentication.RoleFinder {
-	return &roleFinderAdapter{repo: repo}
-}
-
-func (a *roleFinderAdapter) FindRoleByUserID(ctx context.Context, userID string) (string, error) {
-	member, err := a.repo.FindMemberByUserID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if member == nil {
-		return "", nil
-	}
-	return member.Role, nil
-}
-
 type Server struct {
 	cfg         *config.Config
 	db          *database.AppDB
@@ -53,9 +34,7 @@ type Server struct {
 	router      *gin.Engine
 	workerPool  *worker.WorkerPool
 	poller      *worker.OutboxPoller
-	otpCache    *cache.OTPCache
 	limiter     *cache.TokenBucketLimiter
-	authLimiter *cache.TokenBucketLimiter
 }
 
 func NewServer(cfg *config.Config, db *database.AppDB) *Server {
@@ -90,11 +69,9 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 	r.Use(middleware.RequestSizeLimiter(1 << 20)) // 1 MB payload limit
 	r.Use(middleware.TimeoutMiddleware(15 * time.Second))
 
-	// 4. Rate Limiters (General API: 30 rps/burst 50; Auth: strict 5 req/min)
+	// 4. Rate Limiter (General API: 30 rps/burst 50)
 	generalLimiter := cache.NewTokenBucketLimiter(30, 50, 5*time.Minute)
 	r.Use(middleware.NativeRateLimitMiddleware(generalLimiter))
-
-	authLimiter := cache.NewTokenBucketLimiter(1, 5, 5*time.Minute)
 
 	// 5. Initialize Redis Client
 	var redisClient *redis.Client
@@ -116,25 +93,20 @@ func NewServer(cfg *config.Config, db *database.AppDB) *Server {
 		})
 	}
 
-	otpCache := cache.NewOTPCache(redisClient, cfg.OTP.EncryptionKey)
-	tokenStore := cache.NewRefreshTokenStore(redisClient)
-
 	s := &Server{
 		cfg:         cfg,
 		db:          db,
 		redisClient: redisClient,
 		router:      r,
-		otpCache:    otpCache,
 		limiter:     generalLimiter,
-		authLimiter: authLimiter,
 	}
 
-	s.setupRoutes(tokenStore)
+	s.setupRoutes()
 	return s
 }
 
-func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
-	// Outbox Repository & Worker Pool Setup
+func (s *Server) setupRoutes() {
+	// Outbox Repository & Worker Pool Setup (AdminDB for worker consumption)
 	outboxRepo := notification.NewOutboxRepository(s.db, s.redisClient)
 	s.workerPool = worker.NewWorkerPool(outboxRepo, 3, 100)
 	s.workerPool.Start(context.Background())
@@ -163,30 +135,19 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 		return nil
 	})
 
+	// Initialize Supabase Auth Middleware
+	ctx := context.Background()
+	supabaseAuth, err := middleware.NewSupabaseAuthMiddleware(ctx, s.cfg.Supabase.JWKSURL)
+	if err != nil {
+		log.Fatalf("Failed to initialize Supabase Auth JWKS middleware: %v", err)
+	}
+
 	// Domain Modules Dependency Injection
 	authRepo := authentication.NewRepository(s.db)
+	authSvc := authentication.NewService(authRepo)
+	authHandler := authentication.NewAuthHandler(authSvc)
+
 	familyRepo := family.NewRepository(s.db)
-
-	roleFinder := NewRoleFinderAdapter(familyRepo)
-	otpTTL, err := time.ParseDuration(s.cfg.OTP.TTL)
-	if err != nil {
-		otpTTL = 5 * time.Minute
-	}
-	authSvc := authentication.NewService(
-		authRepo,
-		roleFinder,
-		outboxRepo,
-		s.otpCache,
-		tokenStore,
-		tgClient,
-		s.db,
-		s.cfg.JWT.Secret,
-		s.cfg.Telegram.BotUsername,
-		otpTTL,
-	)
-	isProduction := s.cfg.Server.Mode == "release"
-	authHandler := authentication.NewAuthHandler(authSvc, isProduction)
-
 	familySvc := family.NewService(familyRepo, s.db)
 	familyHandler := family.NewHandler(familySvc)
 
@@ -199,7 +160,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	// Public Routes
 	v1 := s.router.Group("/api/v1")
 	{
-		// Enhanced Health Check with DB & Redis Ping
+		// Health Check with DB & Redis Ping
 		v1.GET("/health", func(c *gin.Context) {
 			dbStatus := "healthy"
 			ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
@@ -225,7 +186,7 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 
 			c.JSON(statusCode, gin.H{
 				"status":      "ok",
-				"version":     "1.4.0",
+				"version":     "2.0.0",
 				"environment": s.cfg.Server.Mode,
 				"database": gin.H{
 					"status":     dbStatus,
@@ -238,14 +199,12 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 			})
 		})
 
-		// Auth group with strict rate limiting
-		authGroup := v1.Group("/authentication")
-		authGroup.Use(middleware.AuthRateLimitMiddleware(s.authLimiter))
+		// Supabase Auth routes (behind Supabase JWT middleware)
+		authGroup := v1.Group("/auth")
+		authGroup.Use(supabaseAuth.Handler())
 		{
-			authGroup.POST("/request-otp", authHandler.RequestOTP)
-			authGroup.POST("/verify-otp", authHandler.VerifyOTP)
-			authGroup.POST("/refresh", authHandler.RefreshToken)
-			authGroup.POST("/logout", authHandler.Logout)
+			authGroup.POST("/provision", authHandler.Provision)
+			authGroup.GET("/me", authHandler.Me)
 		}
 
 		// Bot Internal API routes
@@ -260,8 +219,8 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	}
 
 	// Protected Routes — Family Setup (no family context needed)
-	familySetup := v1.Group("")
-	familySetup.Use(middleware.AuthMiddleware(s.cfg.JWT.Secret))
+	familySetup := v1.Group("/api/v1")
+	familySetup.Use(supabaseAuth.Handler())
 	{
 		familySetup.POST("/family", familyHandler.CreateFamily)
 		familySetup.POST("/family/join", familyHandler.JoinFamily)
@@ -269,8 +228,8 @@ func (s *Server) setupRoutes(tokenStore *cache.RefreshTokenStore) {
 	}
 
 	// Protected Routes — Requires family membership (family_id injected into context)
-	familyProtected := v1.Group("")
-	familyProtected.Use(middleware.AuthMiddleware(s.cfg.JWT.Secret))
+	familyProtected := v1.Group("/api/v1")
+	familyProtected.Use(supabaseAuth.Handler())
 	familyProtected.Use(middleware.FamilyContextMiddleware(s.db))
 	{
 		familyProtected.PATCH("/family", middleware.RequireRole("admin"), familyHandler.UpdateFamily)
@@ -331,9 +290,6 @@ func (s *Server) Start() error {
 	}
 	if s.limiter != nil {
 		s.limiter.Close()
-	}
-	if s.authLimiter != nil {
-		s.authLimiter.Close()
 	}
 	if s.redisClient != nil {
 		s.redisClient.Close()

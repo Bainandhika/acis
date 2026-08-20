@@ -52,7 +52,7 @@ func TestWorkerPool_SuccessJob(t *testing.T) {
 		wg.Done()
 	})
 
-	pool.RegisterHandler("email_otp", func(ctx context.Context, job notification.NotificationJob) error {
+	pool.RegisterHandler("telegram_alert", func(ctx context.Context, job notification.NotificationJob) error {
 		return nil
 	})
 
