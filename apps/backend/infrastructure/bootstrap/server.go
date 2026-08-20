@@ -235,7 +235,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	// Protected Routes — Family Setup (no family context needed)
-	familySetup := v1.Group("/api/v1")
+	familySetup := v1.Group("")
 	familySetup.Use(supabaseAuth.Handler())
 	{
 		familySetup.POST("/family", familyHandler.CreateFamily)
@@ -244,7 +244,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	// Protected Routes — Requires family membership (family_id injected into context)
-	familyProtected := v1.Group("/api/v1")
+	familyProtected := v1.Group("")
 	familyProtected.Use(supabaseAuth.Handler())
 	familyProtected.Use(middleware.FamilyContextMiddleware(s.db))
 	{
