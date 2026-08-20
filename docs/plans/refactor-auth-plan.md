@@ -243,33 +243,25 @@ Future backend changes MUST adhere strictly to these patterns:
 
 ---
 
-## PHASE 3 — Frontend (Vue 3)
+## PHASE 3 — Frontend (Vue 3) [COMPLETED]
 
-### TASK-301: Supabase client + env
-- **Files:** `apps/frontend/package.json` (add `@supabase/supabase-js`), create `apps/frontend/src/lib/supabase.ts`, `.env.example` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
-- **Pattern:**
-```ts
-import { createClient } from '@supabase/supabase-js'
-export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-)
-```
+### TASK-301: Supabase client + env [COMPLETED]
+- **Files:** `apps/frontend/package.json` (added `@supabase/supabase-js`), created `apps/frontend/src/lib/supabase.js`, `.env.example` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 - **Commit:** `feat(web): add supabase client`
 
-### TASK-302: Auth store (Pinia)
-- **Files:** create `stores/auth.ts`; delete old auth store/login state.
-- **Implement:** `session` state; `signInWithGoogle()` → `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })`; `signOut()`; `onAuthStateChange` sync; `init()` calls `POST /auth/provision` once per session.
+### TASK-302: Auth store (Pinia) [COMPLETED]
+- **Files:** created `apps/frontend/src/stores/auth.js`; deleted old `useAuthStore.js`.
+- **Implement:** `session` state, `signInWithGoogle()` (`supabase.auth.signInWithOAuth`), `signOut()`, `onAuthStateChange` listener, `init()` with profile auto-provisioning (`POST /auth/provision`).
 - **Commit:** `feat(web): add pinia auth store with google oauth`
 
-### TASK-303: API client Bearer interceptor
-- **Files:** existing API/axios module.
-- **Implement:** before each request, attach `Authorization: Bearer <session.access_token>` (refresh via `supabase.auth.getSession()`); on 401 → `signOut()` + redirect to `/login`. Remove `withCredentials` cookie usage.
+### TASK-303: API client Bearer interceptor [COMPLETED]
+- **Files:** `apps/frontend/src/services/api.js`.
+- **Implement:** attaches `Authorization: Bearer <session.access_token>` to every request; refreshes token on 401 via `supabase.auth.refreshSession()`; falls back to `signOut()` and redirecting to `/masuk` on auth expiration.
 - **Commit:** `feat(web): attach bearer token to api requests`
 
-### TASK-304: Replace login UI
-- **Files:** login view/components.
-- **Changes:** remove email+phone form and Telegram deep-link UI; single "Continue with Google" button calling `signInWithGoogle()`; keep DaisyUI styling.
+### TASK-304: Replace login UI [COMPLETED]
+- **Files:** `apps/frontend/src/views/auth/LoginView.vue`.
+- **Changes:** removed OTP forms, phone inputs, and test OTP components; added Google OAuth login button calling `signInWithGoogle()`.
 - **Commit:** `feat(web): replace otp login with google oauth button`
 
 ---
