@@ -75,7 +75,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { approveProposal, createProposal, getFamily, getProposals, getWallets, rejectProposal } from '../../services/api'
-import { useAuthStore } from '../../stores/useAuthStore'
+import { useAuthStore } from '../../stores/auth'
 const proposals = ref([]); const wallets = ref([]); const family = ref(null); const error = ref(''); const reviewing = ref(null); const authStore = useAuthStore(); const proposal = ref({ wallet_id: '', title: '', amount: 0, description: '', request_type: 'add_transaction' })
 const isAdmin = computed(() => authStore.user?.role === 'admin' || family.value?.members?.some(member => member.user_id === authStore.user?.id && member.role === 'admin'))
 const pending = computed(() => proposals.value.filter(proposal => proposal.status === 'pending'))

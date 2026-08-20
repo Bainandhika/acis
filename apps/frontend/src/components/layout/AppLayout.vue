@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { useAuthStore } from '../../stores/useAuthStore'
+import { useAuthStore } from '../../stores/auth'
 import { useRouter } from 'vue-router'
 import logo from '../../assets/logo-acis.png'
 
@@ -37,7 +37,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 async function logout() {
-    await authStore.logout()
+    await authStore.signOut()
     router.push({ name: 'Login' })
 }
 </script>

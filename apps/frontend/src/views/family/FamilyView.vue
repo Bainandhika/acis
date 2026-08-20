@@ -136,7 +136,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { createFamily, createWallet, deleteWallet, disconnectTelegram, getFamily, getTransactions, getWallets, joinFamily, removeMember, updateFamily, updateFamilySettings, updateWallet } from '../../services/api'
-import { useAuthStore } from '../../stores/useAuthStore'
+import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore();
 const family = ref(null);
