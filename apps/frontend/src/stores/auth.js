@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { supabase } from '../lib/supabase'
+import { getSupabaseClient, supabase } from '../lib/supabase'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -20,6 +20,12 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async init() {
       if (this.initialized) return
+
+      if (!supabase) {
+        this.loading = false
+        this.initialized = true
+        return
+      }
 
       try {
         this.loading = true
@@ -53,7 +59,8 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async signInWithGoogle() {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const client = getSupabaseClient()
+      const { data, error } = await client.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin
@@ -67,7 +74,9 @@ export const useAuthStore = defineStore('auth', {
 
     async signOut() {
       try {
-        await supabase.auth.signOut()
+        if (supabase) {
+          await supabase.auth.signOut()
+        }
       } finally {
         this.session = null
         this.user = null
@@ -102,6 +111,9 @@ export const useAuthStore = defineStore('auth', {
           const res = await response.json()
           this.profile = res.data || res
           return this.profile
+        } else {
+          const errBody = await response.json().catch(() => ({}))
+          console.error('Profile provisioning error response:', response.status, errBody)
         }
       } catch (err) {
         console.warn('Profile provisioning background sync failed:', err)
