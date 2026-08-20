@@ -16,12 +16,11 @@ type Client struct {
 }
 
 type Family struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	InviteCode     string  `json:"invite_code"`
-	TelegramChatID *int64  `json:"telegram_chat_id,omitempty"`
-	MonthlyIncome  float64 `json:"monthly_income"`
-	WalletCounter  int     `json:"wallet_counter"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	InviteCode     string `json:"invite_code"`
+	TelegramChatID *int64 `json:"telegram_chat_id,omitempty"`
+	WalletCounter  int    `json:"wallet_counter"`
 }
 
 type WalletBalance struct {
