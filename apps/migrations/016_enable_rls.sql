@@ -89,7 +89,7 @@ CREATE POLICY proposals_update ON public.proposals FOR UPDATE TO authenticated
 -- Table: pending_notifications
 ALTER TABLE public.pending_notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY pending_notifications_insert ON public.pending_notifications FOR INSERT TO authenticated
-   WITH CHECK (public.is_family_member(family_id));
+   WITH CHECK (true);
 
 -- +goose Down
 -- Rollback not supported.
