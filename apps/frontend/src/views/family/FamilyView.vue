@@ -40,15 +40,9 @@
                     <label for="family-name" class="mb-2 block text-sm font-medium text-slate-700">Nama keluarga</label>
                     <input id="family-name" v-model="form.name" required class="w-full rounded border p-2" />
                 </div>
-                <div class="mt-3">
-                    <label for="family-monthly-income" class="mb-2 block text-sm font-medium text-slate-700">Pendapatan
-                        bulanan</label>
-                    <input id="family-monthly-income" v-model.number="form.monthly_income" type="number" min="0"
-                        class="w-full rounded border p-2" placeholder="Pendapatan bulanan" />
-                </div>
                 <button type="submit"
                     class="mt-4 rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Simpan
-                    pengaturan</button>
+                    nama keluarga</button>
             </form>
             <div class="rounded-lg bg-white p-5 shadow-sm">
                 <div class="flex items-center justify-between">
@@ -135,7 +129,7 @@
 </template>
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { createFamily, createWallet, deleteWallet, disconnectTelegram, getFamily, getTransactions, getWallets, joinFamily, removeMember, updateFamily, updateFamilySettings, updateWallet } from '../../services/api'
+import { createFamily, createWallet, deleteWallet, disconnectTelegram, getFamily, getTransactions, getWallets, joinFamily, removeMember, updateFamily, updateWallet } from '../../services/api'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore();
@@ -146,41 +140,32 @@ const error = ref('');
 const loading = ref(true);
 const walletOpen = ref(false);
 const inviteCode = ref('');
-const form = ref({ name: '', monthly_income: 0 });
+const form = ref({ name: '' });
 const wallet = ref({ name: '', initial_balance: 0, minimum_limit: 0 });
 const walletEditor = ref({ open: false, wallet: null, name: '', current_balance: 0 });
 
 const isAdmin = computed(() => authStore.user?.role === 'admin' || family.value?.members?.some(member => member.user_id === authStore.user?.id && member.role === 'admin'))
-const totalWalletBalance = computed(() => wallets.value.reduce((sum, item) => sum + Number(item.current_balance || 0), 0))
-const incomeThisMonth = computed(() => transactions.value.filter(item => item.type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0))
-const walletLimit = computed(() => Number(family.value?.monthly_income ?? incomeThisMonth.value ?? 0))
 const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
-
-function validateWalletTotal(nextTotal) {
-    if (nextTotal > walletLimit.value) {
-        error.value = 'Jumlah nominal semua dompet tidak boleh melebihi nominal pendapatan bulanan keluarga.'
-        return false
-    }
-    error.value = ''
-    return true
-}
 
 async function load() {
     loading.value = true
+    error.value = ''
     try {
         const now = new Date();
-        const [f, w, t] = await Promise.all([
-            getFamily(),
-            getWallets(),
-            getTransactions(now.getFullYear(), now.getMonth() + 1)
-        ]);
-
+        const f = await getFamily()
         family.value = f.data
-        wallets.value = w.data || []
-        transactions.value = t.data || []
 
         if (family.value) {
-            form.value = { name: f.data.name, monthly_income: f.data.monthly_income }
+            form.value = { name: f.data.name }
+            const [w, t] = await Promise.all([
+                getWallets().catch(() => ({ data: [] })),
+                getTransactions(now.getFullYear(), now.getMonth() + 1).catch(() => ({ data: [] }))
+            ]);
+            wallets.value = w.data || []
+            transactions.value = t.data || []
+        } else {
+            wallets.value = []
+            transactions.value = []
         }
     } catch (loadError) {
         error.value = loadError.message
@@ -189,14 +174,25 @@ async function load() {
     }
 }
 
-async function setup(mode) { try { await (mode === 'create' ? createFamily({ name: form.value.name, monthly_income: form.value.monthly_income }) : joinFamily({ invite_code: inviteCode.value.toUpperCase() })); await load() } catch (setupError) { error.value = setupError.message } }
-async function saveFamily() { try { await updateFamily({ name: form.value.name }); await updateFamilySettings({ monthly_income: form.value.monthly_income }); await load() } catch (saveError) { error.value = saveError.message } }
-async function saveWallet() {
-    const nextTotal = totalWalletBalance.value + Number(wallet.value.initial_balance || 0)
-    if (!validateWalletTotal(nextTotal)) {
-        return
+async function setup(mode) {
+    try {
+        await (mode === 'create' ? createFamily({ name: form.value.name }) : joinFamily({ invite_code: inviteCode.value.toUpperCase() }));
+        await load()
+    } catch (setupError) {
+        error.value = setupError.message
     }
+}
 
+async function saveFamily() {
+    try {
+        await updateFamily({ name: form.value.name });
+        await load()
+    } catch (saveError) {
+        error.value = saveError.message
+    }
+}
+
+async function saveWallet() {
     try {
         await createWallet(wallet.value)
         wallet.value = { name: '', initial_balance: 0, minimum_limit: 0 }
@@ -223,15 +219,10 @@ function editWallet(item) {
 async function saveWalletEdit() {
     if (!walletEditor.value.wallet) return
 
-    const oldBalance = Number(walletEditor.value.wallet.current_balance || 0)
-    const newBalance = Number(walletEditor.value.current_balance || 0)
-    const nextTotal = totalWalletBalance.value - oldBalance + newBalance
-    if (!validateWalletTotal(nextTotal)) return
-
     try {
         const payload = {
             name: walletEditor.value.name.trim(),
-            current_balance: newBalance,
+            current_balance: Number(walletEditor.value.current_balance || 0),
             minimum_limit: Number(walletEditor.value.wallet.minimum_limit || 0)
         }
 
