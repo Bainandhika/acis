@@ -29,19 +29,6 @@ func (m *MockTransactionRepository) GetTransactionsByFamilyIDAndPeriod(ctx conte
 	return args.Get(0).([]transaction.Transaction), args.Error(1)
 }
 
-func (m *MockTransactionRepository) GetFamilyForUpdate(ctx context.Context, exec transaction.DBExecutor, familyID string) (*transaction.FamilyBalanceRecord, error) {
-	args := m.Called(ctx, exec, familyID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*transaction.FamilyBalanceRecord), args.Error(1)
-}
-
-func (m *MockTransactionRepository) UpdateFamilyPrimaryBalance(ctx context.Context, exec transaction.DBExecutor, familyID string, newBalance float64) error {
-	args := m.Called(ctx, exec, familyID, newBalance)
-	return args.Error(0)
-}
-
 func (m *MockTransactionRepository) GetTransactionByID(ctx context.Context, txID string) (*transaction.Transaction, error) {
 	args := m.Called(ctx, txID)
 	if args.Get(0) == nil {
