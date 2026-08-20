@@ -10,7 +10,7 @@ export async function apiRequest(path, options = {}) {
 
   // Retrieve current fresh access token from Supabase session
   let token = authStore.token
-  if (!token) {
+  if (!token && supabase) {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.access_token) {
       token = session.access_token
@@ -30,20 +30,22 @@ export async function apiRequest(path, options = {}) {
 
   if (response.status === 401) {
     // If unauthorized, attempt to refresh session with Supabase
-    const { data: { session } } = await supabase.auth.refreshSession()
-    if (session?.access_token) {
-      authStore.session = session
-      authStore.user = session.user
-      headers.set('Authorization', `Bearer ${session.access_token}`)
-      const retryResponse = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers
-      })
-      const retryBody = await retryResponse.json().catch(() => ({}))
-      if (!retryResponse.ok) {
-        throw new Error(retryBody.error || 'Permintaan gagal diproses')
+    if (supabase) {
+      const { data: { session } } = await supabase.auth.refreshSession()
+      if (session?.access_token) {
+        authStore.session = session
+        authStore.user = session.user
+        headers.set('Authorization', `Bearer ${session.access_token}`)
+        const retryResponse = await fetch(`${API_URL}${path}`, {
+          ...options,
+          headers
+        })
+        const retryBody = await retryResponse.json().catch(() => ({}))
+        if (!retryResponse.ok) {
+          throw new Error(retryBody.error || 'Permintaan gagal diproses')
+        }
+        return retryBody
       }
-      return retryBody
     }
 
     // Refresh failed or token completely invalid -> sign out & redirect to login
