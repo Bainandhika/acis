@@ -165,117 +165,81 @@ WHERE t.wallet_id = w.id AND t.family_id IS NULL;
 
 ---
 
-## PHASE 2 — Backend (Go)
+## PHASE 2 — Backend (Go) [COMPLETED]
 
-### TASK-201: Config schema update
-- **Files:** `apps/backend/config/*` (read existing config package first), `apps/backend/acis-config.yaml.example`, `apps/backend/.env.example`.
-- **Changes:** add `supabase.jwks_url` (bound to `SUPABASE_JWKS_URL`, default `https://gkouiqfystipswyqwdu.supabase.co/auth/v1/.well-known/jwks.json`), `database.app_dsn` (the `acis_app` pooler DSN), `database.admin_dsn` (service_role DSN, port 6543 or 5432). Remove `jwt.secret`, `jwt.expiry`, `otp.*` sections. Keep `telegram.*` and `bot.secret`.
-- **DO NOT** touch handler/service code yet (compile may break; that is fixed in TASK-204/205).
+### TASK-201: Config schema update [COMPLETED]
+- **Files:** `apps/backend/config/*`, `apps/backend/acis-config.yaml`, `apps/backend/.env.example`.
+- **Changes:** added `supabase.jwks_url` (`SUPABASE_JWKS_URL`), `database.app_dsn` (`DATABASE_APP_DSN`), `database.admin_dsn` (`DATABASE_ADMIN_DSN`). Removed `jwt.secret`, `jwt.expiry`, `otp.*` sections. Kept `telegram.*` and `bot.secret`.
 - **Commit:** `chore(config): add supabase jwt and dual-pool dsn configuration`
 
-### TASK-202: Dual pool infrastructure + user-scoped transaction helper
-- **Files:** create/extend under `apps/backend/infrastructure/` (imitate existing repository wiring style).
+### TASK-202: Dual pool infrastructure + user-scoped transaction helper [COMPLETED]
+- **Files:** `apps/backend/infrastructure/database/db.go`, `apps/backend/cmd/api/main.go`.
 - **Implement:**
   1. `userDB *sqlx.DB` (from `database.app_dsn`) and `adminDB *sqlx.DB` (from `database.admin_dsn`).
-  2. The mandatory transaction wrapper (copy this pattern; it is the RLS activation point):
-
-```go
-// WithUserContext runs fn in a transaction scoped to the authenticated user.
-// set_config(..., true) and SET LOCAL ROLE are transaction-scoped: they activate
-// Supabase RLS (auth.uid()) for every query inside fn and vanish on commit/rollback.
-func (p *Postgres) WithUserContext(ctx context.Context, userID, email string, fn func(tx *sqlx.Tx) error) error {
-    tx, err := p.userDB.BeginTxx(ctx, nil)
-    if err != nil {
-        return err
-    }
-    defer func() { _ = tx.Rollback() }() // no-op after successful commit
-
-    claims, err := json.Marshal(map[string]string{
-        "sub": userID, "role": "authenticated", "email": email, "aud": "authenticated",
-    })
-    if err != nil {
-        return err
-    }
-    // Parameterized: never string-concatenate JWT data into SQL (OWASP A03).
-    if _, err := tx.ExecContext(ctx, `SELECT set_config('request.jwt.claims', $1, true)`, string(claims)); err != nil {
-        return err
-    }
-    if _, err := tx.ExecContext(ctx, `SET LOCAL ROLE authenticated`); err != nil {
-        return err
-    }
-    if err := fn(tx); err != nil {
-        return err
-    }
-    return tx.Commit()
-}
-```
-
-- **Acceptance:** `go build ./...` passes.
+  2. `database.NewDualPool(cfg.AppDSN(), cfg.AdminDSN())`.
+  3. `db.WithUserContext(ctx, func(tx *sqlx.Tx) error { ... })` where user claims are extracted directly from `context.Context`.
 - **Commit:** `feat(db): add dual connection pools and rls-scoped transaction helper`
 
-### TASK-203: Supabase JWT auth middleware via JWKS (ES256)
-- **Dependency:** add `github.com/lestrrat-go/jwx/v2`.
-- **Create:** `apps/backend/infrastructure/middleware/supabase_auth.go` (imitate existing middleware style).
-- **Startup behavior:**
-  1. `cache := jwk.NewCache(ctx)`
-  2. `cache.Register(jwksURL, jwk.WithMinRefreshInterval(15*time.Minute))`
-  3. `cache.Refresh(ctx, jwksURL)` once at boot; fail fast on error.
-- **Per-request behavior:**
-  1. Read `Authorization` header; require prefix `Bearer `, else 401 JSON.
-  2. `set, err := cache.Get(ctx, jwksURL)`; on error 401 JSON.
-  3. Parse the token with options: `jwt.WithKeySet(set)`, `jwt.WithValidate(true)`, `jwt.WithAcceptableSkew(5*time.Second)`, `jwt.WithAudience("authenticated")`.
-  4. On any parse/validation error → 401 JSON.
-  5. Extract `sub` and `email` claims; store in Gin context keys `auth_user_id` and `auth_user_email`; call `c.Next()`.
-- **Reference pattern:**
-
-```go
-// JWKS-backed verification: validates ES256 (ECC P-256) signatures and
-// survives Supabase key rotation via cached refresh. Never store a shared
-// JWT signing secret in this service (asymmetric trust model, OWASP A02).
-tok, err := jwt.Parse([]byte(raw),
-    jwt.WithKeySet(set),              // signature check against current ECC key
-    jwt.WithValidate(true),           // enforces exp / nbf
-    jwt.WithAcceptableSkew(5*time.Second),
-    jwt.WithAudience("authenticated"),
-)
-```
-
-- **DO NOT:** verify with HS256 or any shared secret; accept `alg=none`; add any token-signing capability to this service.
-- **Acceptance:**
-  1. `go build ./...` passes.
-  2. Unit test `supabase_auth_test.go`: generate an ES256 P-256 keypair, serve its public key as a JWKS via `httptest.Server`, then assert: valid token (aud=authenticated, exp=+1h) passes; expired token → 401; token signed by an unknown key → 401. If jwx v2 signatures differ from the pattern above, read the library README from the Go module cache and adapt the code; do NOT change the acceptance criteria.
+### TASK-203: Supabase JWT auth middleware via JWKS (ES256) [COMPLETED]
+- **Dependency:** `github.com/lestrrat-go/jwx/v2`.
+- **File:** `apps/backend/infrastructure/middleware/supabase_auth.go`.
+- **Implementation:**
+  1. Asymmetric ES256 key verification against Supabase public JWKS endpoint.
+  2. Injects authenticated `userID` and `email` directly into `c.Request.Context()` via `context.WithValue(reqCtx, "auth_user_id", userID)` and `context.WithValue(reqCtx, "auth_user_email", email)` as well as Gin context.
 - **Commit:** `feat(auth): verify supabase jwt via jwks es256 middleware`
 
-### TASK-204: Delete legacy auth (Telegram OTP, sessions, OTP crypto)
-- **Files:** locate via grep: `otp`, `AES`, `GCM`, `session`, `cookie`, `auth_` deep-link symbols in `apps/backend` (handlers, services, repositories, shared utils, Redis OTP keys).
-- **Delete** all of them, including their unit tests (e.g., OTP cache tests in `shared`).
-- **Keep:** everything under the bot internal API (`BOT_INTERNAL_SECRET` protected routes) and all transaction/wallet/proposal business logic.
-- **Rewire** DI in the bootstrap file so it compiles without the deleted services.
-- **Acceptance:** `go build ./...` and `go test ./...` pass; `grep -ri "otp" apps/backend --include=*.go` returns nothing except comments referencing this migration.
+### TASK-204: Delete legacy auth (Telegram OTP, sessions, OTP crypto) [COMPLETED]
+- **Deleted:** `domain/auth/`, AES-GCM OTP cryptography, session cookies, Redis OTP keys, and all legacy login routes.
 - **Commit:** `refactor(auth): remove telegram otp and session cookie authentication`
 
-### TASK-205: New auth endpoints (provision + profile)
-- **Files:** new handler/service/repository under existing Clean Architecture layers.
+### TASK-205: New auth endpoints (provision + profile) [COMPLETED]
+- **Files:** `domain/authentication/handler.go`, `domain/authentication/service.go`, `domain/authentication/repository.go`.
 - **Endpoints:**
-  1. `POST /auth/provision` (behind TASK-203 middleware): `INSERT INTO users (id, name, username, avatar_url) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING` via `WithUserContext`; username fallback = `'user_' || left($1, 8)`; then return the profile row.
-  2. `GET /auth/me` (middleware): return profile + family memberships.
-- **Acceptance:** curl with a real Supabase token returns 200; without token → 401.
+  1. `POST /api/v1/auth/provision` (behind Supabase JWT middleware): provisions user profile record.
+  2. `GET /api/v1/auth/me`: retrieves authenticated user profile and family memberships.
 - **Commit:** `feat(auth): add profile provisioning and me endpoints`
 
-### TASK-206: Migrate all user-scoped repositories to WithUserContext
-- **Files:** every repository touching `users`, `families`, `family_members`, `wallets`, `transactions`, `proposals`.
-- **Rule:** every read/write executes inside `WithUserContext(ctx, userID, email, fn)`. The `userID` comes from Gin context (set by middleware). **Keep existing `WHERE family_id = $x` filters** (defense in depth; RLS is the safety net, not the replacement).
-- **adminDB usage:** only for `pending_notifications` consumption used by `/internal/*` bot endpoints.
-- **Acceptance:** `go build ./...`, `go test ./...` pass; manual curl: user A token cannot see user B family data (expect empty/404).
-- **Commit:** `refactor(repo): scope all repositories to rls user context`
+### TASK-206: Migrate all user-scoped repositories to WithUserContext [COMPLETED]
+- **Files:** `domain/family/repository.go`, `domain/family/service.go`, `domain/transaction/repository.go`, `domain/transaction/service.go`, `domain/authentication/repository.go`.
+- **Rule:** Every user-scoped read/write transaction executes inside `s.db.WithUserContext(ctx, func(tx *sqlx.Tx) error { ... })`.
+- **Commit:** `fix(arch): properly propagate auth context to rls and fix dual pool wiring`
 
-### TASK-207: Telegram linking endpoint (internal)
-- **Files:** existing internal router + a new Redis-backed link-code store (Upstash).
+### TASK-207: Telegram linking endpoint (internal) [COMPLETED]
+- **Files:** `domain/bot/handler.go`, `domain/bot/service.go`, `domain/bot/repository.go`.
 - **Endpoints:**
-  1. `POST /telegram/link-code` (user middleware): generate 6-char code, `SET link:<code> <user_id> EX 600` in Upstash, return code.
-  2. `POST /internal/telegram/link` (`BOT_INTERNAL_SECRET`): body `{code, chat_id}`; pop the key; `UPDATE users SET telegram_chat_id = $1 WHERE id = $2`.
-- **Acceptance:** wrong secret → 401; expired code → 404.
+  1. `POST /api/v1/telegram/link-code` (requires user JWT): generates 6-char OTP stored in Redis.
+  2. `POST /api/v1/internal/telegram/link` (requires `BOT_INTERNAL_SECRET`): consumes code, links `chat_id` to user.
 - **Commit:** `feat(bot): add telegram account linking via one-time code`
+
+---
+
+## Backend Architectural Patterns (Phase 2)
+
+Future backend changes MUST adhere strictly to these patterns:
+
+1. **Dual Pool Database Architecture:**
+   - Always initialize database via `database.NewDualPool(cfg.AppDSN(), cfg.AdminDSN())`.
+   - **`userDB` (via `s.db.WithUserContext`):** Used for ALL user-scoped API operations. Runs inside a transaction where `SELECT set_config('request.jwt.claims', $1, true)` and `SET LOCAL ROLE authenticated` are applied. Supabase Postgres RLS policies (`auth.uid() = ...`) are strictly enforced.
+   - **`adminDB` (via `s.db.AdminDB()`):** Used EXCLUSIVELY for background workers (`outboxRepository`), cron jobs, and internal bot webhook endpoints (`/api/v1/internal/telegram/*`) where operations are cross-family or not bound to an individual user JWT.
+
+2. **Context Propagation for RLS:**
+   - The Supabase auth middleware (`infrastructure/middleware/supabase_auth.go`) verifies the ES256 JWT and populates `c.Request.Context()`:
+     ```go
+     reqCtx := c.Request.Context()
+     reqCtx = context.WithValue(reqCtx, "auth_user_id", userID)
+     reqCtx = context.WithValue(reqCtx, "auth_user_email", email)
+     c.Request = c.Request.WithContext(reqCtx)
+     ```
+   - `db.WithUserContext(ctx, func(tx *sqlx.Tx) error { ... })` extracts `auth_user_id` and `auth_user_email` directly from `ctx`. It **does NOT** take `userID` or `email` as explicit function parameters. If missing from context, it immediately returns an error.
+   - Domain repositories and services pass `ctx` to `s.db.WithUserContext` without hardcoding empty strings or mock user IDs.
+
+3. **Authentication & Token Verification:**
+   - JWT verification is strictly **ES256 (ECC P-256)** via Supabase public JWKS endpoint (`github.com/lestrrat-go/jwx/v2`).
+   - HS256 shared-secret verification is deprecated and disabled.
+   - Token claims required: `sub` (User UUID), `aud: authenticated`, `exp` (valid timestamp).
+
+4. **Legacy Auth Removal:**
+   - Telegram OTP generation/validation, AES-GCM session cryptography, and session cookies are completely deleted. Do NOT attempt to recreate them.
 
 ---
 
@@ -311,6 +275,11 @@ export const supabase = createClient(
 ---
 
 ## PHASE 4 — Telegram Bot
+
+The bot **NO LONGER** handles user authentication, login deep-links, or OTP delivery. Account linking operates via a secure one-time code flow:
+1. **Frontend / Webapp:** Authenticated user requests a one-time link code (`POST /api/v1/telegram/link-code` with user Supabase JWT). Backend generates a 6-character code and caches it in Redis for 10 minutes.
+2. **Telegram User:** User opens the Telegram bot and sends `/link <code>`.
+3. **Bot Backend:** Bot sends `POST /api/v1/internal/telegram/link` (with `BOT_INTERNAL_SECRET`) containing the code and `chat_id`. Backend validates the code and updates `users.telegram_chat_id` using `adminDB`.
 
 ### TASK-401: Remove auth flows from bot
 - **Files:** `apps/bot/**`.
