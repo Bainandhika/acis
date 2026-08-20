@@ -20,9 +20,10 @@ type UpdateFamilyReq struct {
 }
 
 type UpdateWalletReq struct {
-	Name         string  `json:"name" binding:"required,min=2,max=255"`
-	Description  *string `json:"description"`
-	MinimumLimit float64 `json:"minimum_limit"`
+	Name           string  `json:"name" binding:"required,min=2,max=255"`
+	Description    *string `json:"description"`
+	CurrentBalance float64 `json:"current_balance"`
+	MinimumLimit   float64 `json:"minimum_limit"`
 }
 
 type FamilyMemberDTO struct {
