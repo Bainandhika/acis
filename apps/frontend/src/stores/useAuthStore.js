@@ -6,12 +6,22 @@ export const useAuthStore = defineStore('auth', {
     user: JSON.parse(localStorage.getItem('auth_user') || 'null')
   }),
   actions: {
-    async requestOtp(phoneNumber) {
+    async requestOtp(phoneNumber, options = {}) {
+      const action = options.action || 'login'
+      const payload = {
+        phone_number: phoneNumber,
+        action
+      }
+
+      if (options.username) {
+        payload.username = options.username
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'}/authentication/request-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ phone_number: phoneNumber, action: 'login' })
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
@@ -21,12 +31,25 @@ export const useAuthStore = defineStore('auth', {
 
       return response.json()
     },
-    async verifyOtp(phoneNumber, otp) {
+    async verifyOtp(phoneNumber, otp, options = {}) {
+      const payload = {
+        phone_number: phoneNumber,
+        otp
+      }
+
+      if (options.action) {
+        payload.action = options.action
+      }
+
+      if (options.username) {
+        payload.username = options.username
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'}/authentication/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ phone_number: phoneNumber, otp })
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
