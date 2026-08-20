@@ -50,3 +50,6 @@ backups/
 # Config
 *-config.yaml
 !*-config.yaml.example
+
+# Agent
+AGENTS.md
