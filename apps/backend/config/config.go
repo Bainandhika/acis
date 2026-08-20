@@ -208,6 +208,10 @@ func Load(configPath string) (*Config, error) {
 
 // DSN returns Data Source Name string for database connection
 func (c *Config) DSN() string {
+	if c.Database.URL != "" {
+		return c.Database.URL
+	}
+
 	host := c.Database.Host
 	port := c.Database.Port
 	user := c.Database.User
