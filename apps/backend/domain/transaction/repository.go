@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
+	"github.com/jmoiron/sqlx"
 )
 
 type DBExecutor interface {
@@ -76,19 +77,30 @@ func (r *txRepoImpl) GetTransactionsByFamilyIDAndPeriod(ctx context.Context, fam
 	}
 
 	var list []Transaction
-	err := r.db.SelectContext(ctx, &list, query, args...)
+	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+		return tx.SelectContext(ctx, &list, query, args...)
+	})
 	return list, err
 }
 
 func (r *txRepoImpl) GetTransactionByID(ctx context.Context, txID string) (*Transaction, error) {
-	query := `SELECT id, COALESCE(wallet_id::text, '') AS wallet_id, family_id, created_by, type, amount, description, created_at 
-			  FROM transactions WHERE id = $1`
-	var tx Transaction
-	err := r.db.GetContext(ctx, &tx, query, txID)
-	if errors.Is(err, sql.ErrNoRows) {
+	var txRec Transaction
+	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+		query := `SELECT id, COALESCE(wallet_id::text, '') AS wallet_id, family_id, created_by, type, amount, description, created_at 
+				  FROM transactions WHERE id = $1`
+		err := tx.GetContext(ctx, &txRec, query, txID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if txRec.ID == "" {
 		return nil, nil
 	}
-	return &tx, err
+	return &txRec, nil
 }
 
 func (r *txRepoImpl) UpdateTransactionRecord(ctx context.Context, exec DBExecutor, txID string, txType string, amount float64, description *string) error {
@@ -104,18 +116,22 @@ func (r *txRepoImpl) DeleteTransaction(ctx context.Context, exec DBExecutor, txI
 }
 
 func (r *txRepoImpl) CreateProposal(ctx context.Context, p *Proposal) error {
-	query := `INSERT INTO proposals (id, wallet_id, proposed_by, title, amount, description, status, request_type, target_transaction_id, payload) 
-			  VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9) RETURNING created_at, updated_at`
-	return r.db.QueryRowContext(ctx, query, p.ID, p.WalletID, p.ProposedBy, p.Title, p.Amount, p.Description, p.RequestType, p.TargetTransactionID, p.Payload).Scan(&p.CreatedAt, &p.UpdatedAt)
+	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+		query := `INSERT INTO proposals (id, wallet_id, proposed_by, title, amount, description, status, request_type, target_transaction_id, payload) 
+				  VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9) RETURNING created_at, updated_at`
+		return tx.QueryRowContext(ctx, query, p.ID, p.WalletID, p.ProposedBy, p.Title, p.Amount, p.Description, p.RequestType, p.TargetTransactionID, p.Payload).Scan(&p.CreatedAt, &p.UpdatedAt)
+	})
 }
 
 func (r *txRepoImpl) GetProposalsByFamilyID(ctx context.Context, familyID string) ([]Proposal, error) {
-	query := `SELECT p.id, p.wallet_id, p.proposed_by, p.title, p.amount, p.description, p.status, p.request_type, p.target_transaction_id, p.payload, p.reviewed_by, p.reviewed_at, p.created_at, p.updated_at
-			  FROM proposals p
-			  JOIN wallets w ON p.wallet_id = w.id
-			  WHERE w.family_id = $1 ORDER BY p.created_at DESC`
 	var list []Proposal
-	err := r.db.SelectContext(ctx, &list, query, familyID)
+	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+		query := `SELECT p.id, p.wallet_id, p.proposed_by, p.title, p.amount, p.description, p.status, p.request_type, p.target_transaction_id, p.payload, p.reviewed_by, p.reviewed_at, p.created_at, p.updated_at
+				  FROM proposals p
+				  JOIN wallets w ON p.wallet_id = w.id
+				  WHERE w.family_id = $1 ORDER BY p.created_at DESC`
+		return tx.SelectContext(ctx, &list, query, familyID)
+	})
 	return list, err
 }
 

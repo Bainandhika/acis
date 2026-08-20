@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Bainandhika/acis/apps/backend/infrastructure/database"
 	"github.com/gin-gonic/gin"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -93,6 +94,10 @@ func (m *SupabaseAuthMiddleware) Handler() gin.HandlerFunc {
 		// Set legacy keys as fallback compatibility during migration
 		c.Set("user_id", userID)
 		c.Set("user_email", email)
+
+		// Inject into standard request context for RLS / database propagation
+		reqCtx := database.WithUserAuthContext(c.Request.Context(), userID, email)
+		c.Request = c.Request.WithContext(reqCtx)
 
 		c.Next()
 	}

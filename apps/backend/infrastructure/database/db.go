@@ -105,10 +105,40 @@ func (db *AppDB) AdminDB() *sqlx.DB {
 	return db.DB
 }
 
+type userAuthContextKey struct{}
+
+type UserAuthInfo struct {
+	UserID string
+	Email  string
+}
+
+// WithUserAuthContext wraps ctx with UserAuthInfo containing authenticated user credentials.
+func WithUserAuthContext(ctx context.Context, userID, email string) context.Context {
+	return context.WithValue(ctx, userAuthContextKey{}, UserAuthInfo{
+		UserID: userID,
+		Email:  email,
+	})
+}
+
+// UserAuthFromContext retrieves UserAuthInfo from context if present.
+func UserAuthFromContext(ctx context.Context) (UserAuthInfo, bool) {
+	info, ok := ctx.Value(userAuthContextKey{}).(UserAuthInfo)
+	return info, ok
+}
+
 // WithUserContext runs fn in a transaction scoped to the authenticated user.
 // set_config(..., true) and SET LOCAL ROLE are transaction-scoped: they activate
 // Supabase RLS (auth.uid()) for every query inside fn and vanish on commit/rollback.
 func (db *AppDB) WithUserContext(ctx context.Context, userID, email string, fn func(tx *sqlx.Tx) error) error {
+	if userID == "" {
+		if info, ok := UserAuthFromContext(ctx); ok {
+			userID = info.UserID
+			if email == "" {
+				email = info.Email
+			}
+		}
+	}
+
 	pool := db.UserDB()
 	tx, err := pool.BeginTxx(ctx, nil)
 	if err != nil {
