@@ -27,7 +27,7 @@ func NewRepository(db *database.AppDB) AuthRepository {
 
 func (r *authRepoImpl) FindByUserID(ctx context.Context, userID, email string) (*User, error) {
 	var user User
-	err := r.db.WithUserContext(ctx, userID, email, func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT id, username, name, avatar_url, telegram_chat_id, created_at, updated_at FROM users WHERE id = $1`
 		err := tx.GetContext(ctx, &user, query, userID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -46,7 +46,7 @@ func (r *authRepoImpl) FindByUserID(ctx context.Context, userID, email string) (
 
 func (r *authRepoImpl) ProvisionUser(ctx context.Context, userID, email string, user *User) (*User, error) {
 	var provisioned User
-	err := r.db.WithUserContext(ctx, userID, email, func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		// username fallback = 'user_' || left($1, 8)
 		query := `
 			INSERT INTO users (id, name, username, avatar_url)
@@ -68,7 +68,7 @@ func (r *authRepoImpl) ProvisionUser(ctx context.Context, userID, email string, 
 
 func (r *authRepoImpl) GetUserMemberships(ctx context.Context, userID, email string) ([]FamilyMembership, error) {
 	var memberships []FamilyMembership
-	err := r.db.WithUserContext(ctx, userID, email, func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `
 			SELECT fm.family_id, f.name AS family_name, fm.role
 			FROM family_members fm
@@ -92,7 +92,7 @@ func (r *authRepoImpl) UpdateTelegramChatID(ctx context.Context, userID string, 
 }
 
 func (r *authRepoImpl) UpdateTelegramChatIDByUserID(ctx context.Context, userID, email string, chatID int64) error {
-	return r.db.WithUserContext(ctx, userID, email, func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `UPDATE users SET telegram_chat_id = $1, updated_at = NOW() WHERE id = $2`
 		_, err := tx.ExecContext(ctx, query, chatID, userID)
 		return err

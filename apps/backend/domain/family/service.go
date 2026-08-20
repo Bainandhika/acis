@@ -69,7 +69,7 @@ func (s *familyService) CreateFamily(ctx context.Context, userID, name string, m
 		CreatedBy:     &userID,
 	}
 
-	err = s.db.WithUserContext(ctx, userID, "", func(tx *sqlx.Tx) error {
+	err = s.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		if err := s.repo.CreateFamily(ctx, tx, family); err != nil {
 			return errors.New("failed to create family record")
 		}
@@ -121,7 +121,7 @@ func (s *familyService) JoinFamily(ctx context.Context, userID, inviteCode strin
 		UserID:   userID,
 		Role:     "member",
 	}
-	err = s.db.WithUserContext(ctx, userID, "", func(tx *sqlx.Tx) error {
+	err = s.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		return s.repo.AddMember(ctx, tx, member)
 	})
 	if err != nil {

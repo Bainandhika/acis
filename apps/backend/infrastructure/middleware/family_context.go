@@ -30,10 +30,8 @@ func FamilyContextMiddleware(db *database.AppDB) gin.HandlerFunc {
 
 		var familyID string
 		var role string
-		email, _ := c.Get("auth_user_email")
-		emailStr, _ := email.(string)
 
-		err := db.WithUserContext(c.Request.Context(), uidStr, emailStr, func(tx *sqlx.Tx) error {
+		err := db.WithUserContext(c.Request.Context(), func(tx *sqlx.Tx) error {
 			query := `SELECT family_id, role FROM family_members WHERE user_id = $1 LIMIT 1`
 			return tx.QueryRowContext(c.Request.Context(), query, uidStr).Scan(&familyID, &role)
 		})

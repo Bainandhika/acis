@@ -122,21 +122,29 @@ func WithUserAuthContext(ctx context.Context, userID, email string) context.Cont
 
 // UserAuthFromContext retrieves UserAuthInfo from context if present.
 func UserAuthFromContext(ctx context.Context) (UserAuthInfo, bool) {
-	info, ok := ctx.Value(userAuthContextKey{}).(UserAuthInfo)
-	return info, ok
+	if info, ok := ctx.Value(userAuthContextKey{}).(UserAuthInfo); ok && info.UserID != "" {
+		return info, true
+	}
+	// Fallback to string keys
+	if uid, ok := ctx.Value("auth_user_id").(string); ok && uid != "" {
+		email, _ := ctx.Value("auth_user_email").(string)
+		return UserAuthInfo{UserID: uid, Email: email}, true
+	}
+	if uid, ok := ctx.Value("user_id").(string); ok && uid != "" {
+		email, _ := ctx.Value("user_email").(string)
+		return UserAuthInfo{UserID: uid, Email: email}, true
+	}
+	return UserAuthInfo{}, false
 }
 
 // WithUserContext runs fn in a transaction scoped to the authenticated user.
 // set_config(..., true) and SET LOCAL ROLE are transaction-scoped: they activate
 // Supabase RLS (auth.uid()) for every query inside fn and vanish on commit/rollback.
-func (db *AppDB) WithUserContext(ctx context.Context, userID, email string, fn func(tx *sqlx.Tx) error) error {
-	if userID == "" {
-		if info, ok := UserAuthFromContext(ctx); ok {
-			userID = info.UserID
-			if email == "" {
-				email = info.Email
-			}
-		}
+// The authenticated user is resolved from context.Context.
+func (db *AppDB) WithUserContext(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
+	info, ok := UserAuthFromContext(ctx)
+	if !ok || info.UserID == "" {
+		return fmt.Errorf("authenticated user context is required for database operations")
 	}
 
 	pool := db.UserDB()
@@ -147,9 +155,9 @@ func (db *AppDB) WithUserContext(ctx context.Context, userID, email string, fn f
 	defer func() { _ = tx.Rollback() }() // no-op after successful commit
 
 	claims, err := json.Marshal(map[string]string{
-		"sub":   userID,
+		"sub":   info.UserID,
 		"role":  "authenticated",
-		"email": email,
+		"email": info.Email,
 		"aud":   "authenticated",
 	})
 	if err != nil {

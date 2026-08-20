@@ -97,6 +97,10 @@ func (m *SupabaseAuthMiddleware) Handler() gin.HandlerFunc {
 
 		// Inject into standard request context for RLS / database propagation
 		reqCtx := database.WithUserAuthContext(c.Request.Context(), userID, email)
+		reqCtx = context.WithValue(reqCtx, "auth_user_id", userID)
+		reqCtx = context.WithValue(reqCtx, "auth_user_email", email)
+		reqCtx = context.WithValue(reqCtx, "user_id", userID)
+		reqCtx = context.WithValue(reqCtx, "user_email", email)
 		c.Request = c.Request.WithContext(reqCtx)
 
 		c.Next()

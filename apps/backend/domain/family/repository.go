@@ -56,7 +56,7 @@ func (r *familyRepoImpl) CreateFamily(ctx context.Context, exec DBExecutor, f *F
 
 func (r *familyRepoImpl) FindFamilyByID(ctx context.Context, id string) (*Family, error) {
 	var f Family
-	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, primary_balance, wallet_counter, created_by, created_at, updated_at FROM families WHERE id = $1`
 		err := tx.GetContext(ctx, &f, query, id)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -75,7 +75,7 @@ func (r *familyRepoImpl) FindFamilyByID(ctx context.Context, id string) (*Family
 
 func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string) (*Family, error) {
 	var f Family
-	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT id, name, invite_code, telegram_chat_id, monthly_income, primary_balance, wallet_counter, created_by, created_at, updated_at FROM families WHERE invite_code = $1`
 		err := tx.GetContext(ctx, &f, query, inviteCode)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -94,7 +94,7 @@ func (r *familyRepoImpl) FindByInviteCode(ctx context.Context, inviteCode string
 
 func (r *familyRepoImpl) FindFamilyByUserID(ctx context.Context, userID string) (*Family, error) {
 	var f Family
-	err := r.db.WithUserContext(ctx, userID, "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT f.id, f.name, f.invite_code, f.telegram_chat_id, f.monthly_income, f.primary_balance, f.wallet_counter, f.created_by, f.created_at, f.updated_at 
 				  FROM families f
 				  JOIN family_members fm ON f.id = fm.family_id
@@ -116,7 +116,7 @@ func (r *familyRepoImpl) FindFamilyByUserID(ctx context.Context, userID string) 
 
 func (r *familyRepoImpl) IncrementWalletCounter(ctx context.Context, familyID string) (int, error) {
 	var counter int
-	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `UPDATE families SET wallet_counter = wallet_counter + 1 WHERE id = $1 RETURNING wallet_counter`
 		return tx.QueryRowContext(ctx, query, familyID).Scan(&counter)
 	})
@@ -125,7 +125,7 @@ func (r *familyRepoImpl) IncrementWalletCounter(ctx context.Context, familyID st
 
 func (r *familyRepoImpl) FindMemberByUserID(ctx context.Context, userID string) (*FamilyMember, error) {
 	var m FamilyMember
-	err := r.db.WithUserContext(ctx, userID, "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT id, family_id, user_id, role, joined_at FROM family_members WHERE user_id = $1 LIMIT 1`
 		err := tx.GetContext(ctx, &m, query, userID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -149,7 +149,7 @@ func (r *familyRepoImpl) AddMember(ctx context.Context, exec DBExecutor, m *Fami
 
 func (r *familyRepoImpl) GetMembers(ctx context.Context, familyID string) ([]FamilyMember, error) {
 	var members []FamilyMember
-	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT fm.id, fm.family_id, fm.user_id, fm.role, fm.joined_at, 
 				  COALESCE(NULLIF(u.username, ''), NULLIF(u.name, ''), 'Member') AS user_name 
 				  FROM family_members fm 
@@ -162,7 +162,7 @@ func (r *familyRepoImpl) GetMembers(ctx context.Context, familyID string) ([]Fam
 }
 
 func (r *familyRepoImpl) UpdateTelegramChatID(ctx context.Context, familyID string, chatID *int64) error {
-	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `UPDATE families SET telegram_chat_id = $1, updated_at = NOW() WHERE id = $2`
 		_, err := tx.ExecContext(ctx, query, chatID, familyID)
 		return err
@@ -189,7 +189,7 @@ func (r *familyRepoImpl) UpdatePrimaryBalance(ctx context.Context, exec DBExecut
 }
 
 func (r *familyRepoImpl) UpdateMonthlyIncome(ctx context.Context, familyID string, income float64) error {
-	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `UPDATE families SET monthly_income = $1, updated_at = NOW() WHERE id = $2`
 		_, err := tx.ExecContext(ctx, query, income, familyID)
 		return err
@@ -197,7 +197,7 @@ func (r *familyRepoImpl) UpdateMonthlyIncome(ctx context.Context, familyID strin
 }
 
 func (r *familyRepoImpl) UpdateFamilyName(ctx context.Context, familyID string, name string) error {
-	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `UPDATE families SET name = $1, updated_at = NOW() WHERE id = $2`
 		_, err := tx.ExecContext(ctx, query, name, familyID)
 		return err
@@ -205,7 +205,7 @@ func (r *familyRepoImpl) UpdateFamilyName(ctx context.Context, familyID string, 
 }
 
 func (r *familyRepoImpl) CreateWallet(ctx context.Context, w *Wallet) error {
-	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `INSERT INTO wallets (id, family_id, short_id, name, description, initial_balance, current_balance, minimum_limit, created_by) 
 				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING created_at, updated_at`
 		return tx.QueryRowContext(ctx, query, w.ID, w.FamilyID, w.ShortID, w.Name, w.Description, w.InitialBalance, w.CurrentBalance, w.MinimumLimit, w.CreatedBy).
@@ -215,7 +215,7 @@ func (r *familyRepoImpl) CreateWallet(ctx context.Context, w *Wallet) error {
 
 func (r *familyRepoImpl) GetWalletsByFamilyID(ctx context.Context, familyID string) ([]Wallet, error) {
 	var wallets []Wallet
-	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT id, family_id, short_id, name, description, initial_balance, current_balance, minimum_limit, created_at, updated_at 
 				  FROM wallets WHERE family_id = $1 ORDER BY name ASC`
 		return tx.SelectContext(ctx, &wallets, query, familyID)
@@ -225,7 +225,7 @@ func (r *familyRepoImpl) GetWalletsByFamilyID(ctx context.Context, familyID stri
 
 func (r *familyRepoImpl) GetWalletByID(ctx context.Context, walletID string) (*Wallet, error) {
 	var w Wallet
-	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT id, family_id, short_id, name, description, initial_balance, current_balance, minimum_limit, created_at, updated_at 
 				  FROM wallets WHERE id = $1`
 		err := tx.GetContext(ctx, &w, query, walletID)
@@ -258,7 +258,7 @@ func (r *familyRepoImpl) FindWalletByShortID(ctx context.Context, shortID string
 }
 
 func (r *familyRepoImpl) UpdateWallet(ctx context.Context, walletID string, name string, description *string, currentBalance float64, minimumLimit float64) error {
-	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `UPDATE wallets SET name = $1, description = $2, current_balance = $3, minimum_limit = $4, updated_at = NOW() WHERE id = $5`
 		_, err := tx.ExecContext(ctx, query, name, description, currentBalance, minimumLimit, walletID)
 		return err
@@ -266,7 +266,7 @@ func (r *familyRepoImpl) UpdateWallet(ctx context.Context, walletID string, name
 }
 
 func (r *familyRepoImpl) DeleteWallet(ctx context.Context, walletID string, familyID string) error {
-	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `DELETE FROM wallets WHERE id = $1 AND family_id = $2`
 		_, err := tx.ExecContext(ctx, query, walletID, familyID)
 		return err
@@ -285,7 +285,7 @@ func (r *familyRepoImpl) GetLowBalanceWallets(ctx context.Context) ([]LowBalance
 
 func (r *familyRepoImpl) FindMemberByID(ctx context.Context, memberID string) (*FamilyMember, error) {
 	var m FamilyMember
-	err := r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	err := r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `SELECT id, family_id, user_id, role, joined_at FROM family_members WHERE id = $1 LIMIT 1`
 		err := tx.GetContext(ctx, &m, query, memberID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -303,7 +303,7 @@ func (r *familyRepoImpl) FindMemberByID(ctx context.Context, memberID string) (*
 }
 
 func (r *familyRepoImpl) RemoveMember(ctx context.Context, memberID string, familyID string) error {
-	return r.db.WithUserContext(ctx, "", "", func(tx *sqlx.Tx) error {
+	return r.db.WithUserContext(ctx, func(tx *sqlx.Tx) error {
 		query := `DELETE FROM family_members WHERE id = $1 AND family_id = $2`
 		_, err := tx.ExecContext(ctx, query, memberID, familyID)
 		return err
